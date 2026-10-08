@@ -25,7 +25,9 @@ DSH_BUILD_FACE=client pnpm --filter @deepseek-ai/dsh-client-ui-conversation bund
 
 Windows PowerShell 先执行 `$env:DSH_BUILD_FACE='client'` 再执行最后的 pnpm 命令。
 
-在 DSH 环境同步的第三方插件管理中添加 GitHub 仓库 `vb2250158/dsh-input-assist`，固定版本对应的完整提交 SHA 并 Import。Git 安装需要允许本插件运行构建脚本。重启 DSH 后刷新页面，在输入框配置补齐模型。
+在 DSH 环境同步的第三方插件管理中添加 GitHub 仓库 `vb2250158/dsh-input-assist`，固定版本对应的完整提交 SHA 并 Import。Git 安装需要允许本插件运行构建脚本。Import 完成后，在插件管理中启用 `dsh-input-assist` bundle，再重启 DSH 并刷新页面，在输入框配置补齐模型。
+
+确认 profile 的 `package.json.dsh.profile.bundles` 包含 `dsh-input-assist`。已有依赖的 Import 可能只更新文件，保留原来的关闭状态；安装成功不能代替启用核验。
 
 仅安装插件而没有宿主接口时，补齐不会生效。宿主升级后先运行补丁检查；发生冲突时停止应用，不覆盖已有文件。
 
