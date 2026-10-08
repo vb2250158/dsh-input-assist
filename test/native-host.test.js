@@ -21,6 +21,46 @@ test('rejects invalid settings and retains an independent model route', () => {
   JSON.parse(readFileSync(new URL('./native-request.expected.json', import.meta.url), 'utf8')))
 })
 
+test('optional references stay out of default requests even when the client sends them', () => {
+  const config = { ...NATIVE_DEFAULTS, provider: 'configured', model: 'small' }
+  const request = nativeRequest(config, '当前草稿', new AbortController().signal, {
+    history: [{ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '历史文字' }] }], clipboard: '剪贴板文字',
+  })
+  assert.equal(request.messages.length, 1)
+  assert.equal(request.messages[0].content[0].text, '当前草稿')
+  assert.equal(NATIVE_DEFAULTS.includeHistory, false)
+  assert.equal(NATIVE_DEFAULTS.includeClipboard, false)
+})
+
+test('bounds selected references and applies the saved completion prompt to the exact request', () => {
+  const config = { ...NATIVE_DEFAULTS, provider: 'configured', model: 'small', includeHistory: true, historyMessageLimit: 2,
+    maxHistoryCharacters: 64, includeClipboard: true, maxClipboardCharacters: 64, maxInputCharacters: 64,
+    systemPrompt: '仅补写一个简短短语，保持原文语气。' }
+  const history = [
+    { role: 'system', source: { kind: 'system-prompt' }, content: [{ type: 'text', text: '不能被当作会话参考的系统内容' }] },
+    { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '较早的用户消息' }] },
+    { role: 'user', source: { kind: 'context' }, content: [{ type: 'text', text: '不能被当作用户消息的工具上下文' }] },
+    { role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text: 'a'.repeat(80) }] },
+    { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '当前问题' }, { type: 'image', data: 'excluded' }] },
+  ]
+  const request = nativeRequest(config, 'x'.repeat(100), new AbortController().signal, { history, clipboard: 'c'.repeat(100) })
+  const reference = JSON.parse(request.messages[0].content[0].text.split('\n').slice(1).join('\n'))
+  assert.deepEqual(reference.history, [{ role: 'assistant', text: 'a'.repeat(60) }, { role: 'user', text: '当前问题' }])
+  assert.equal(reference.clipboard, 'c'.repeat(64))
+  assert.equal(request.system, config.systemPrompt)
+  assert.equal(request.messages.at(-1).content[0].text, 'x'.repeat(64))
+  assert.equal(request.tools, undefined)
+})
+
+test('rejects blank prompts and invalid context limits before a settings write', () => {
+  for (const patch of [{ systemPrompt: ' ' }, { systemPrompt: 'x'.repeat(8001) }, { includeHistory: 'true' },
+    { includeClipboard: 1 }, { historyMessageLimit: 21 }, { maxHistoryCharacters: 12001 }, { maxClipboardCharacters: 63 }]) {
+    assert.throws(() => validateNativePatch(patch))
+  }
+  assert.deepEqual(validateNativePatch({ systemPrompt: '仅续写一句。', includeHistory: true, includeClipboard: false }),
+    { systemPrompt: '仅续写一句。', includeHistory: true, includeClipboard: false })
+})
+
 test('real HTTP streams through the registered route and aborts model work on disconnect', async t => {
   const routes = new Map()
   const disposers = []

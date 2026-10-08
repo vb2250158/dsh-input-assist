@@ -1,0 +1,17 @@
+/** Completion surfaces inherit the same controls, menu material and semantic colors as the composer. */
+export const NATIVE_UI_STYLE = `
+.dsh-completion-icon{width:28px;padding:0;flex:0 0 auto}
+.dsh-completion-popover{width:300px;max-width:calc(100vw - 24px)}
+.dsh-completion-heading{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}
+.dsh-completion-enable{padding:6px 8px}
+.dsh-completion-choice{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0}
+.dsh-completion-choice>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-completion-value{margin-left:auto;color:var(--dsw-alias-label-secondary);max-width:180px}
+.dsh-completion-settings{display:grid;gap:14px;min-width:0;width:min(520px,calc(100vw - 64px));max-height:70vh;overflow-y:auto}
+.dsh-completion-row{display:grid;gap:6px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}
+.dsh-completion-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.dsh-completion-error{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;padding:0 14px}
+.dsh-completion-note{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;padding:4px 8px}
+.dsh-completion-footer{display:flex;gap:8px;justify-content:flex-end;padding:4px 8px}
+.dsh-completion-capture{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+`

@@ -73,3 +73,16 @@ test('uses the browser fetch transport for settings and cancellable completion',
   assert.deepEqual(parts, ['并说明原因'])
   assert.equal(calls.length, 2)
 })
+
+test('only transmits explicitly supplied clipboard text and retains cancellation', async t => {
+  const api = client()
+  const original = globalThis.fetch
+  const signal = new AbortController().signal
+  t.after(() => { globalThis.fetch = original })
+  globalThis.fetch = async (_path, init) => {
+    assert.equal(init.signal, signal)
+    assert.deepEqual(JSON.parse(init.body), { prefix: '当前草稿', sessionId: 'test-session', clipboard: '合成剪贴板内容' })
+    return new Response('data: {"done":true}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+  }
+  for await (const part of api.requestCompletion('当前草稿', 'test-session', signal, '合成剪贴板内容')) void part
+})
