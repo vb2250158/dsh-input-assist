@@ -1,6 +1,6 @@
 {
   "name": "dsh-input-assist",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "DSH input completion with an independent configured model, native editor insertion and cancellable streaming",
   "type": "module",
   "main": "lib/native-host.js",
