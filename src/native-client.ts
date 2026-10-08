@@ -167,7 +167,7 @@ export function apply(ctx: Context): void {
           pane === 'root' ? h(Button, { size: 'sm', className: 'dsh-completion-icon', 'aria-label': t('settings'), disabled: loading, onClick: () => { close(); setAdvanced(true) } }, h(IconSettingsOutlineRegular, { size: 16 })) : null),
         loading ? h('div', { className: 'dsh-completion-note', role: 'status' }, t('loading')) : null,
         pane === 'root' ? h(React.Fragment, null,
-          h('div', { className: 'dsh-completion-enable' }, h(Switch, { checked: form.enabled, label: t('enabled'), onChange: (enabled: boolean) => setForm({ ...form, enabled }) })),
+          h('div', { className: 'dsh-completion-enable' }, h('span', null, t('enabled')), h(Switch, { checked: form.enabled, label: t('enabled'), onChange: (enabled: boolean) => setForm({ ...form, enabled }) })),
           h(MenuItemButton, { disabled: loading || saving, onSelect: () => setPane('provider'), children: row(t('provider'), catalog.find(entry => entry.provider === form.provider)?.name ?? t('choose')) }),
           h(MenuItemButton, { disabled: loading || saving || !form.provider, onSelect: () => { setPane('model'); setQuery('') }, children: row(t('model'), models.find(model => model.id === form.model)?.name ?? (form.model || t('choose'))) }),
           h('div', { className: 'dsh-completion-footer' }, h(Button, { size: 'sm', variant: 'primary', disabled: loading || saving, onClick: () => { void save() } }, t('save'))),
@@ -179,7 +179,10 @@ export function apply(ctx: Context): void {
         ),
         error ? h('div', { className: 'dsh-completion-note', role: 'alert' }, error) : null,
       )),
-      h(Modal, { open: advanced, onClose: () => setAdvanced(false), title: t('settings'), closeLabel: t('close') },
+      h(Modal, { open: advanced, onClose: () => setAdvanced(false), title: t('settings'), closeLabel: t('close'),
+        className: 'dsh-completion-dialog', contentClassName: 'dsh-completion-content',
+        footer: h('div', { className: 'dsh-completion-footer' }, h(Button, { onClick: () => setAdvanced(false) }, t('cancel')), h(Button, { variant: 'primary', disabled: saving, onClick: () => { void save() } }, t('save'))),
+      },
         h('div', { className: 'dsh-completion-settings' },
           field('maxInputCharacters', 'context'),
           h(Checkbox, { checked: form.includeHistory, label: t('history'), onChange: (includeHistory: boolean) => setForm({ ...form, includeHistory }) }),
@@ -194,7 +197,6 @@ export function apply(ctx: Context): void {
           h('div', { className: 'dsh-completion-pair' }, field('maxTokens', 'length'), field('maxCharacters', 'characters')),
           h('div', { className: 'dsh-completion-note' }, t('hint')),
           error ? h('div', { role: 'alert' }, error) : null,
-          h('div', { className: 'dsh-completion-footer' }, h(Button, { onClick: () => setAdvanced(false) }, t('cancel')), h(Button, { variant: 'primary', disabled: saving, onClick: () => { void save() } }, t('save'))),
         )),
     )
   }
