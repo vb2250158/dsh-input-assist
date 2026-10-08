@@ -15,6 +15,10 @@ export interface NativeConfig {
   includeHistory: boolean
   historyMessageLimit: number
   maxHistoryCharacters: number
+  includeToolCalls: boolean
+  includeFileChanges: boolean
+  excludeUserMessages: boolean
+  excludeIntermediateAssistant: boolean
   includeClipboard: boolean
   maxClipboardCharacters: number
 }
@@ -23,5 +27,6 @@ export const NATIVE_DEFAULTS: NativeConfig = {
   maxTokens: 64, maxCharacters: 200, maxInputCharacters: 2000,
   systemPrompt: DEFAULT_COMPLETION_PROMPT,
   includeHistory: false, historyMessageLimit: 4, maxHistoryCharacters: 4000,
+  includeToolCalls: false, includeFileChanges: false, excludeUserMessages: false, excludeIntermediateAssistant: true,
   includeClipboard: false, maxClipboardCharacters: 2000,
 }

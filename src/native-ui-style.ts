@@ -4,9 +4,6 @@ export const NATIVE_UI_STYLE = `
 .dsh-completion-popover{width:300px;max-width:calc(100vw - 24px)}
 .dsh-completion-heading{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}
 .dsh-completion-enable{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
-.dsh-completion-choice{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0}
-.dsh-completion-choice>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dsh-completion-value{margin-left:auto;color:var(--dsw-alias-label-secondary);max-width:180px}
 .dsh-completion-dialog{width:min(600px,100%);max-height:100%}
 .dsh-completion-content{min-height:0;overflow-y:auto}
 .dsh-completion-settings{display:grid;gap:14px;min-width:0;width:100%}
@@ -17,4 +14,5 @@ export const NATIVE_UI_STYLE = `
 .dsh-completion-footer{display:flex;gap:8px;justify-content:flex-end;padding:4px 8px}
 .dsh-completion-capture{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
 @media(max-width:480px){.dsh-completion-pair{grid-template-columns:minmax(0,1fr)}}
+.dsh-completion-picker{min-width:0;padding:0 8px}
 `

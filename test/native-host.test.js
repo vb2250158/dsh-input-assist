@@ -35,7 +35,7 @@ test('optional references stay out of default requests even when the client send
 test('bounds selected references and applies the saved completion prompt to the exact request', () => {
   const config = { ...NATIVE_DEFAULTS, provider: 'configured', model: 'small', includeHistory: true, historyMessageLimit: 2,
     maxHistoryCharacters: 64, includeClipboard: true, maxClipboardCharacters: 64, maxInputCharacters: 64,
-    systemPrompt: '仅补写一个简短短语，保持原文语气。' }
+    excludeIntermediateAssistant: false, systemPrompt: '仅补写一个简短短语，保持原文语气。' }
   const history = [
     { role: 'system', source: { kind: 'system-prompt' }, content: [{ type: 'text', text: '不能被当作会话参考的系统内容' }] },
     { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '较早的用户消息' }] },
@@ -71,6 +71,7 @@ test('real HTTP streams through the registered route and aborts model work on di
   const startedPromise = new Promise(resolve => { started = resolve })
   const abortedPromise = new Promise(resolve => { aborted = resolve })
   const ctx = {
+    sessionProjections: { register: () => () => {}, stateOf: () => ({finalAssistantIds:{},filesByResultId:{}}) },
     settings: { describe: () => [{ ns: 'input-assist', revision: 0, value: settings }], update: async (_ns, patch) => { settings = { ...settings, ...patch } } },
     sessions: { get: id => id === 'synthetic-session' ? { append: (...event) => events.push(event) } : undefined },
     llm: {
@@ -104,7 +105,6 @@ test('real HTTP streams through the registered route and aborts model work on di
   const base = `http://127.0.0.1:${server.address().port}`
   const rpc = async (endpoint, payload) => (await fetch(base + NATIVE_RPC_PATH, { method: 'POST', body: JSON.stringify({ endpoint, payload }) })).json()
   assert.equal((await rpc('config.set', { debounceMs: 350 })).value.debounceMs, 350)
-  assert.equal((await rpc('models.list')).value[0].models[0].id, 'small')
   assert.equal((await rpc('config.set', { timeoutMs: -1 })).ok, false)
   const abort = new AbortController()
   const response = await fetch(base + NATIVE_STREAM_PATH, { method: 'POST', body: JSON.stringify({ sessionId: 'synthetic-session', prefix: '帮我查一下' }), signal: abort.signal })

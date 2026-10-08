@@ -18,6 +18,7 @@ test('registers builtin Chinese and English dictionaries and the declared native
   const namespaces = []
   const api = client()
   api.apply({
+    modelPickers: {Picker: () => null},
     effect() {},
     locale: { register(ns, dictionaries) {
       assert.equal(ns, 'input-assist')

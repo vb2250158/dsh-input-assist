@@ -3,16 +3,23 @@ import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk, Message } from '@deepseek-ai/dsh-llm'
+import { historyReferences } from './history-reference.ts'
+import { contextFactsProjection, CONTEXT_FACTS_KEY } from './context-facts.ts'
+import type { ContextFacts } from './context-facts.ts'
 import { normalizeSuggestion } from './completion.ts'
 import { linkedTimeoutSignal } from './abort.ts'
 import { NATIVE_NS, NATIVE_DEFAULTS, DEFAULT_COMPLETION_PROMPT } from './native-config.ts'
 import type { NativeConfig } from './native-config.ts'
 
 export const name = 'input-assist'
-export const inject = ['settings', 'llm', 'sessions', 'connection']
+export const inject = ['settings', 'llm', 'sessions', 'connection', 'sessionProjections']
 export const NATIVE_RPC_PATH = '/api/input-completion/rpc'
 export const NATIVE_STREAM_PATH = '/api/input-completion/stream'
 export const COMPLETION_SYSTEM = DEFAULT_COMPLETION_PROMPT
+/** An adapter-empty completion is a normal absence of an inline suggestion. */
+export function isEmptyCompletionFailure(failure: { code?: string; message: string }): boolean {
+  return failure.code === 'EMPTY_RESPONSE' || /^model(?: "[^"]+")? returned a completed response with no content$/u.test(failure.message)
+}
 export const Config = z.object({
   enabled: z.boolean().default(true), provider: z.string().default(''), model: z.string().default(''),
   debounceMs: z.number().min(100).max(5000).step(1).default(500),
@@ -24,20 +31,22 @@ export const Config = z.object({
   includeHistory: z.boolean().default(false),
   historyMessageLimit: z.number().min(1).max(20).step(1).default(4),
   maxHistoryCharacters: z.number().min(64).max(12000).step(1).default(4000),
+  includeToolCalls: z.boolean().default(false),
+  includeFileChanges: z.boolean().default(false),
+  excludeUserMessages: z.boolean().default(false),
+  excludeIntermediateAssistant: z.boolean().default(true),
   includeClipboard: z.boolean().default(false),
   maxClipboardCharacters: z.number().min(64).max(8000).step(1).default(2000),
 })
 for (const field of Object.values(Config.dict ?? {})) field.meta.volatile = true
 export type Config = { [Key in keyof NativeConfig]: Volatile<NativeConfig[Key]> }
-interface Model { provider: string; id: string; name: string }
 interface NativeServices {
+  sessionProjections: { register(definition: unknown): () => void; stateOf(session: unknown, key: string): ContextFacts }
   settings: {
     describe(): { ns: string; revision: number; value: unknown }[]
     update(ns: string, patch: Partial<NativeConfig>, expectedRevision: number): Promise<void>
   }
   llm: {
-    listProviders(): { id: string; name: string }[]
-    listModels(provider: string): Promise<Model[]>
     stream(options: GenerateOptions): AsyncIterable<StreamChunk>
   }
   sessions: { get(id: string): { deriveMessages(): Message[]; append(type: string, data: unknown, options: { ignorable: true }): unknown } | undefined }
@@ -58,7 +67,7 @@ export function validateNativePatch(value: unknown): Partial<NativeConfig> {
   const patch = object(value)
   for (const [key, item] of Object.entries(patch)) {
     if (!(key in NATIVE_DEFAULTS)) throw new Error(`unknown setting: ${key}`)
-    if (key === 'enabled' || key === 'includeHistory' || key === 'includeClipboard') { if (typeof item !== 'boolean') throw new Error(`${key} must be boolean`) }
+    if (['enabled', 'includeHistory', 'includeClipboard', 'includeToolCalls', 'includeFileChanges', 'excludeUserMessages', 'excludeIntermediateAssistant'].includes(key)) { if (typeof item !== 'boolean') throw new Error(`${key} must be boolean`) }
     else if (key === 'systemPrompt') {
       if (typeof item !== 'string' || item.trim() === '' || item.length > 8000) throw new Error('invalid systemPrompt')
     } else if (key === 'provider' || key === 'model') {
@@ -72,21 +81,11 @@ export function validateNativePatch(value: unknown): Partial<NativeConfig> {
 }
 
 /** Build one model request; no agent turn is started and no tools are supplied. */
-export function nativeRequest(config: NativeConfig, prefix: string, signal: AbortSignal, context: { history?: readonly Message[]; clipboard?: string } = {}): GenerateOptions {
+export function nativeRequest(config: NativeConfig, prefix: string, signal: AbortSignal, context: { history?: readonly Message[]; clipboard?: string; facts?: ContextFacts } = {}): GenerateOptions {
   if (config.provider === '' || config.model === '') throw new Error('请选择补齐供应商和模型')
   const references: { history?: { role: string; text: string }[]; clipboard?: string } = {}
   if (config.includeHistory && context.history) {
-    const history = context.history.filter(message => message.role === 'assistant' || (message.role === 'user' && message.source.kind === 'user'))
-      .map(message => ({ role: message.role, text: message.content.filter(part => part.type === 'text').map(part => part.text).join('') }))
-      .filter(message => message.text.trim() !== '').slice(-config.historyMessageLimit)
-    let budget = config.maxHistoryCharacters
-    const bounded: typeof history = []
-    for (const message of history.slice().reverse()) {
-      if (budget <= 0) break
-      const text = message.text.slice(-budget)
-      bounded.unshift({ ...message, text })
-      budget -= text.length
-    }
+    const bounded = historyReferences(config, context.history, context.facts)
     if (bounded.length > 0) references.history = bounded
   }
   if (config.includeClipboard && context.clipboard) references.clipboard = context.clipboard.slice(0, config.maxClipboardCharacters)
@@ -105,6 +104,7 @@ export function nativeRequest(config: NativeConfig, prefix: string, signal: Abor
 export function apply(ctx: Context, config: Config): void {
   // Structural service faces keep the out-of-tree plugin compatible with the running Host version.
   const services = ctx as unknown as NativeServices
+  ctx.effect(() => services.sessionProjections.register(contextFactsProjection))
   const scope = {
     get: (): NativeConfig => Object.fromEntries(Object.entries(config).map(([key, value]) => [key, value.get()])) as unknown as NativeConfig,
     update: async (patch: Partial<NativeConfig>): Promise<void> => {
@@ -128,16 +128,6 @@ export function apply(ctx: Context, config: Config): void {
             if ((next.provider === '') !== (next.model === '')) throw new Error('供应商和模型需同时选择')
             await scope.update(patch)
             return json({ ok: true, value: scope.get() })
-          }
-          case 'models.list': {
-            const providers = services.llm.listProviders()
-            const results = await Promise.all(providers.map(async provider => {
-              try { return { provider: provider.id, name: provider.name, models: await services.llm.listModels(provider.id) } }
-              catch { // A provider without a catalog still accepts an explicitly entered model id.
-                return { provider: provider.id, name: provider.name, models: [] }
-              }
-            }))
-            return json({ ok: true, value: results })
           }
           default: throw new Error('unknown endpoint')
         }
@@ -164,6 +154,7 @@ export function apply(ctx: Context, config: Config): void {
         try {
           options = nativeRequest(config, prefix, linked.signal, {
             history: config.includeHistory ? session.deriveMessages() : undefined,
+            facts: config.includeHistory ? services.sessionProjections.stateOf(session, CONTEXT_FACTS_KEY) : undefined,
             clipboard: typeof body.clipboard === 'string' ? body.clipboard : undefined,
           })
         // Ignorable auxiliary provenance survives uninstall without entering agent history.
@@ -190,6 +181,7 @@ export function apply(ctx: Context, config: Config): void {
                   send({ delta: after.slice(before.length) })
                   if (text.includes('\n') || after.length >= config.maxCharacters) break
                 } else if (chunk.type === 'finish' && (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')) {
+                  if (text === '' && chunk.reason.kind === 'error' && isEmptyCompletionFailure(chunk.reason.failure)) break
                   throw new Error(chunk.reason.failure.message)
                 }
               }
