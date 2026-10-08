@@ -1,0 +1,8 @@
+{
+  "provider": "configured-provider",
+  "model": "small-model",
+  "system": "续写用户正在输入的请求。只输出可以直接接在原文后面的短文本，保持原文语言和语气。不要回答请求，不要解释，不要重复原文，不要添加引号或 Markdown。最多续写一句；信息不足时输出空文本。",
+  "prefix": "检查配置",
+  "maxTokens": 64,
+  "tools": []
+}

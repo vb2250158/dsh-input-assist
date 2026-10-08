@@ -1,84 +1,96 @@
 {
-	"name": "dsh-input-assist",
-	"version": "0.7.1",
-	"description": "Input assistant for DeepSeek Harness Web UI: inline AI completion (FIM ghost suggestion, Tab to accept) and Chinese-friendly typo checking with click-to-fix.",
-	"type": "module",
-	"main": "lib/index.js",
-	"license": "MIT",
-	"author": "honlnk",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/honlnk/dsh-input-assist.git"
-	},
-	"homepage": "https://honlnk.github.io/dsh-input-assist/",
-	"bugs": {
-		"url": "https://github.com/honlnk/dsh-input-assist/issues"
-	},
-	"keywords": [
-		"dsh",
-		"dsh-plugin",
-		"dsh-input-assist",
-		"deepseek-harness",
-		"deepseek",
-		"input-completion",
-		"ghost-text",
-		"typo-check",
-		"chinese",
-		"proofreading"
-	],
-	"exports": {
-		".": {
-			"types": "./lib/index.d.ts",
-			"default": "./lib/index.js"
-		},
-		"./client": {
-			"default": "./lib/client.js"
-		},
-		"./cordis.patch.yml": "./cordis.patch.yml",
-		"./package.json": "./package.json"
-	},
-	"dsh": {
-		"bundle": {
-			"patch": "./cordis.patch.yml"
-		},
-		"client": {
-			"inject": [
-				"@deepseek-ai/dsh-client-connection",
-				"@deepseek-ai/dsh-client-locale",
-				"@deepseek-ai/dsh-api-remotes"
-			],
-			"platform": "web",
-			"immediately": true
-		}
-	},
-	"files": [
-		"lib/",
-		"test/",
-		"data/",
-		"scripts/",
-		"cordis.patch.yml",
-		"README.md"
-	],
-	"scripts": {
-		"gendict": "node scripts/gen-dict.mjs",
-		"build": "npm run gendict && tsdown",
-		"typecheck": "tsc --noEmit -p tsconfig.json",
-		"test": "npm run build && npm run typecheck && node --test test/*.test.js",
-		"prepack": "npm run typecheck && npm run gendict && npm run build"
-	},
-	"dependencies": {
-		"@deepseek-ai/dsh-settings": "^0.1.5-rc.2",
-		"@deepseek-ai/schemastery": "^3.18.2"
-	},
-	"peerDependencies": {
-		"@deepseek-ai/cordis": "^4.0.1",
-		"react": "^18.2.0"
-	},
-	"devDependencies": {
-		"@deepseek-ai/cordis": "^4.0.2",
-		"@types/node": "^26.2.0",
-		"@types/react": "^18.3.31",
-		"tsdown": "^0.22.14",
-		"typescript": "^7.0.2"
-	}
+  "name": "dsh-input-assist",
+  "version": "0.8.0",
+  "description": "DSH input completion with an independent configured model, native editor insertion and cancellable streaming",
+  "type": "module",
+  "main": "lib/native-host.js",
+  "license": "MIT",
+  "author": "vb2250158",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vb2250158/dsh-input-assist.git"
+  },
+  "homepage": "https://github.com/vb2250158/dsh-input-assist",
+  "bugs": {
+    "url": "https://github.com/vb2250158/dsh-input-assist/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsh-input-assist",
+    "deepseek-harness",
+    "deepseek",
+    "input-completion",
+    "ghost-text",
+    "typo-check",
+    "chinese",
+    "proofreading"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/native-host.d.ts",
+      "default": "./lib/native-host.js"
+    },
+    "./client": {
+      "default": "./lib/native-client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "platform": "web",
+      "immediately": true,
+      "external": [
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    }
+  },
+  "files": [
+    "lib/",
+    "test/",
+    "data/",
+    "scripts/",
+    "cordis.patch.yml",
+    "README.md",
+    "patches/",
+    "README.en.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "gendict": "node scripts/gen-dict.mjs",
+    "build": "npm run gendict && tsdown",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && npm run typecheck && node --test test/*.test.js",
+    "prepack": "npm run typecheck && npm run gendict && npm run build",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-llm": "0.2.1-alpha.1",
+    "@deepseek-ai/dsh-settings": "0.2.1-alpha.1",
+    "@deepseek-ai/schemastery": "~3.18.5-alpha.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5-alpha.1",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5-alpha.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-alpha.1",
+    "@types/node": "^26.2.0",
+    "@types/react": "^18.3.31",
+    "tsdown": "^0.22.14",
+    "typescript": "^7.0.2"
+  }
 }

@@ -1,0 +1,534 @@
+diff --git a/packages/client/ui-conversation/src/client/apply.ts b/packages/client/ui-conversation/src/client/apply.ts
+index 9994c4e..5deef1b 100644
+--- a/packages/client/ui-conversation/src/client/apply.ts
++++ b/packages/client/ui-conversation/src/client/apply.ts
+@@ -427,6 +427,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
+       'conversation.input.left': { kind: 'list', scope: 'session' },
+       'conversation.input.plan': { kind: 'single', scope: 'session' },
+       'conversation.input.right': { kind: 'list', scope: 'session' },
++      'conversation.input.completion': { kind: 'single', scope: 'session' },
+       'conversation.input.model': { kind: 'single', scope: 'session' },
+       'conversation.input.activity': { kind: 'single', scope: 'session' },
+       'conversation.composer.dock': { kind: 'list', scope: 'session' },
+diff --git a/packages/client/ui-conversation/src/client/contract/slots.ts b/packages/client/ui-conversation/src/client/contract/slots.ts
+index 5564aea..2137d7a 100644
+--- a/packages/client/ui-conversation/src/client/contract/slots.ts
++++ b/packages/client/ui-conversation/src/client/contract/slots.ts
+@@ -16,6 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+ import type { ComposerBlock } from './composer-blocks.ts'
++import type { DraftCompletionOwnerProps } from './completion.ts'
+ import type { DraftAttachmentId, InputActions, InputNotice, InputState } from './input.ts'
+ import type { ComposerKeyboard, DraftSnapshot, EditSelection } from './draft-editor.ts'
+ import type { createConversationStore } from '../stores.ts'
+@@ -201,6 +202,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
+     'conversation.input.left': { kind: 'list'; scope: 'session' }
+     /** Compact controls before the composer submit action. */
+     'conversation.input.right': { kind: 'list'; scope: 'session' }
++    /** One cancellable provider; the editor owns keys, composition, and insertion. */
++    'conversation.input.completion': { kind: 'single'; scope: 'session'; owner: DraftCompletionOwnerProps }
+     /** Compact action after the model selector; it can expand across the toolbar while retaining the editor and submit action. */
+     'conversation.input.activity': { kind: 'single'; scope: 'session'; owner: InputActivityOwnerProps }
+     /** Resident composer body, including the no-Session inert state. */
+@@ -426,6 +429,7 @@ export type ComposerBarProps =
+     | 'conversation.input.permission'
+     | 'conversation.input.left' | 'conversation.input.plan'
+     | 'conversation.input.right' | 'conversation.input.model' | 'conversation.input.activity'
++    | 'conversation.input.completion'
+     | 'conversation.composer.dock'
+   >
+   & InjectFace<ComposerBarInjected>
+diff --git a/packages/client/ui-conversation/src/client/contract/completion.ts b/packages/client/ui-conversation/src/client/contract/completion.ts
+new file mode 100644
+index 0000000..0b1d44d
+--- /dev/null
++++ b/packages/client/ui-conversation/src/client/contract/completion.ts
+@@ -0,0 +1,24 @@
++/** Public, cancellable end-of-draft suggestion provider; the editor owns insertion and keys. */
++export interface DraftCompletionRequest {
++  /** Clipboard projection of the draft at a collapsed document-end selection. */
++  readonly prefix: string
++  /** Cancels on editing, selection changes, blur, disable, timeout, or disposal. */
++  readonly signal: AbortSignal
++}
++
++/** One plugin supplies streamed text; it never receives the editor or writes the draft. */
++export interface DraftCompletionProvider {
++  readonly debounceMs: number
++  readonly timeoutMs: number
++  readonly maxCharacters: number
++  /** Must settle when the request signal aborts. Yields appended plain-text deltas. */
++  complete(request: DraftCompletionRequest): AsyncIterable<string>
++  /** Report a failed request without blocking normal editing or submission. */
++  onError(message: string): void
++}
++
++/** The single completion slot's editor-owned registration capability. */
++export interface DraftCompletionOwnerProps {
++  /** Register until the returned disposer runs; concurrent providers are rejected. */
++  register(provider: DraftCompletionProvider): () => void
++}
+diff --git a/packages/client/ui-conversation/src/client/index.ts b/packages/client/ui-conversation/src/client/index.ts
+index 2b9e30d..9383153 100644
+--- a/packages/client/ui-conversation/src/client/index.ts
++++ b/packages/client/ui-conversation/src/client/index.ts
+@@ -1,5 +1,6 @@
+ /** Browser Conversation assemble core, React adapter, shell, and input plugin. */
+ export { apply, Config, inject } from './apply.ts'
++export type { DraftCompletionRequest, DraftCompletionProvider, DraftCompletionOwnerProps } from './contract/completion.ts'
+ export type { Config as ConversationConfig } from './apply.ts'
+ export { UiConversation } from './conversation/assembly.ts'
+ export type { ConversationBinding } from './conversation/assembly.ts'
+diff --git a/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx b/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
+index 0314131..308aa31 100644
+--- a/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
++++ b/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
+@@ -30,6 +30,7 @@ import type {} from '@deepseek-ai/dsh-goal/client'
+ import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
+ import type { ComposerBarProps } from '../contract/slots.ts'
+ import { DraftEditor } from '../input/editor/DraftEditor.tsx'
++import { DraftCompletion } from '../input/editor/DraftCompletion.tsx'
+ import {
+   focusDraftEditor, installDraftFilePicker, installDraftKeymap, installDraftWheel,
+   keepDraftFocus, revealDraftSelection,
+@@ -57,6 +58,7 @@ export const InputBar = memo(function InputBar({
+   const stopKeys = useStopShortcut(keys => keys)
+   void useLexicon // hook seat stays bound by the inject compartment; text-ref decoration rides the shell's editor transforms
+   const commandMenuOpen = useMenuLauncher(source => source === 'command')
++  const completionMenuOpen = useMenuLauncher(source => source !== null)
+   const [activity, setActivity] = useState(false)
+   useEffect(() => { setActivity(false) }, [sessionId])
+   const promptError = useSession(s => s.promptError) ?? null
+@@ -415,6 +417,14 @@ export const InputBar = memo(function InputBar({
+           hint={hint}
+           showPlaceholder={draft === '' && attachments.length === 0 && !claimActive}
+         />
++        {sessionId !== undefined && (
++          <DraftCompletion
++            key={sessionId}
++            editor={editor}
++            enabled={editable && input?.phase === 'plain' && !completionMenuOpen}
++            renderProvider={owner => renderSlot('conversation.input.completion', owner)}
++          />
++        )}
+         <div ref={rowRef} className={css.row}>
+           <div className={css.tools} hidden={activity}>
+             <Tooltip label={t('input.commands')} side="top" delayMs={500}>
+diff --git a/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css b/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css
+index 4676f4c..2688a03 100644
+--- a/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css
++++ b/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css
+@@ -10,6 +10,14 @@
+   padding: 0 var(--dsh-composer-side-clearance) 4px;
+ }
+ 
++/* Generated text wraps with the last paragraph but is absent from the editor document. */
++.input[data-completion-text] > p:last-child::after {
++  content: attr(data-completion-text);
++  color: var(--dsw-alias-label-tertiary);
++  pointer-events: none;
++  white-space: pre-wrap;
++}
++
+ .dock {
+   display: flex;
+   align-items: center;
+diff --git a/packages/client/ui-conversation/src/client/input/editor/completion.ts b/packages/client/ui-conversation/src/client/input/editor/completion.ts
+new file mode 100644
+index 0000000..8a72161
+--- /dev/null
++++ b/packages/client/ui-conversation/src/client/input/editor/completion.ts
+@@ -0,0 +1,143 @@
++/** Editor-owned suggestion lifecycle; generated content never enters the Lexical document. */
++import {
++  $getSelection, $isRangeSelection, COMMAND_PRIORITY_HIGH, HISTORY_PUSH_TAG,
++  KEY_ESCAPE_COMMAND, KEY_TAB_COMMAND,
++} from 'lexical'
++import type { LexicalEditor } from 'lexical'
++import type { DraftCompletionProvider } from '../../contract/completion.ts'
++import { $composerLayout, $detectOffsetOfPoint } from './projection.ts'
++
++/**
++ * Install one end-of-draft provider below the composer's critical menu keymap.
++ * @param editor - the owning editor.
++ * @param provider - cancellable text generator and deployment limits.
++ * @returns disposer which cancels work and removes keys, listeners, and presentation.
++ */
++export function installDraftCompletion(editor: LexicalEditor, provider: DraftCompletionProvider): () => void {
++  let root: HTMLElement | null = null
++  let timer: ReturnType<typeof setTimeout> | undefined
++  let request: AbortController | undefined
++  let ghost = ''
++  let origin = ''
++  let last: string | null = null
++  let composing = false
++  let composingUntil = 0
++  let disposed = false
++  const read = (): string | null => {
++    if (!editor.isEditable() || composing || Date.now() < composingUntil || editor.isComposing()
++      || root === null || !root.contains(root.ownerDocument.activeElement)) return null
++    return editor.getEditorState().read(() => {
++      const selection = $getSelection()
++      if (!$isRangeSelection(selection) || !selection.isCollapsed()) return null
++      const layout = $composerLayout()
++      if ($detectOffsetOfPoint(layout, selection.anchor) !== layout.detectLength) return null
++      const prefix = layout.clipboardText
++      if (prefix.trim().length < 2 || /^[\s]*[/@]/u.test(prefix.split('\n').at(-1) ?? '')) return null
++      return prefix
++    })
++  }
++  const paint = (text: string): void => {
++    ghost = text
++    if (text === '') {
++      root?.removeAttribute('data-completion-text')
++      root?.lastElementChild?.removeAttribute('data-completion-text')
++    } else {
++      root?.setAttribute('data-completion-text', text)
++      root?.lastElementChild?.setAttribute('data-completion-text', text)
++    }
++  }
++  const cancel = (): void => {
++    clearTimeout(timer)
++    timer = undefined
++    request?.abort()
++    request = undefined
++    paint('')
++  }
++  const generate = async (prefix: string): Promise<void> => {
++    const controller = new AbortController()
++    request = controller
++    origin = prefix
++    const timeout = setTimeout(() => controller.abort(new Error('completion timeout')), provider.timeoutMs)
++    try {
++      for await (const delta of provider.complete({ prefix, signal: controller.signal })) {
++        if (disposed || controller.signal.aborted || request !== controller || read() !== prefix) break
++        paint((ghost + delta).slice(0, provider.maxCharacters))
++        if (ghost.includes('\n') || ghost.length >= provider.maxCharacters) {
++          paint(ghost.split('\n')[0] ?? '')
++          controller.abort()
++          break
++        }
++      }
++    } catch (error) {
++      if (!controller.signal.aborted && request === controller && !disposed) {
++        paint('')
++        provider.onError(error instanceof Error ? error.message : String(error))
++      }
++    } finally {
++      clearTimeout(timeout)
++      if (request === controller) request = undefined
++    }
++  }
++  const update = (): void => {
++    const prefix = read()
++    if (prefix === last) return
++    last = prefix
++    cancel()
++    if (prefix !== null && !disposed) timer = setTimeout(() => { void generate(prefix) }, provider.debounceMs)
++  }
++  const start = (): void => { composing = true; update() }
++  const end = (): void => {
++    composing = false
++    composingUntil = Date.now() + 10
++    clearTimeout(timer)
++    timer = setTimeout(update, 10)
++  }
++  const blur = (): void => { last = null; cancel() }
++  const bind = (next: HTMLElement | null, previous: HTMLElement | null): void => {
++    previous?.removeEventListener('focus', update)
++    previous?.removeEventListener('blur', blur)
++    previous?.removeEventListener('compositionstart', start)
++    previous?.removeEventListener('compositionend', end)
++    previous?.removeAttribute('data-completion-text')
++    root = next
++    next?.addEventListener('focus', update)
++    next?.addEventListener('blur', blur)
++    next?.addEventListener('compositionstart', start)
++    next?.addEventListener('compositionend', end)
++    last = null
++    update()
++  }
++  const off = [
++    editor.registerRootListener(bind),
++    editor.registerUpdateListener(update),
++    editor.registerEditableListener(update),
++    editor.registerCommand(KEY_ESCAPE_COMMAND, (event) => {
++      if (read() === null || (ghost === '' && timer === undefined && request === undefined)) return false
++      event.preventDefault()
++      cancel()
++      return true
++    }, COMMAND_PRIORITY_HIGH),
++    editor.registerCommand(KEY_TAB_COMMAND, (event) => {
++      if (event?.shiftKey || event?.ctrlKey || event?.metaKey || event?.altKey || event?.isComposing
++        || event?.keyCode === 229 || ghost === '' || read() !== origin) return false
++      const text = ghost
++      cancel()
++      event?.preventDefault()
++      editor.update(() => {
++        const selection = $getSelection()
++        if ($isRangeSelection(selection) && selection.isCollapsed()) selection.insertText(text)
++      }, { tag: HISTORY_PUSH_TAG, discrete: true })
++      // Acceptance is one undo step; the next suggestion waits for a user edit.
++      last = origin + text
++      clearTimeout(timer)
++      timer = undefined
++      return true
++    }, COMMAND_PRIORITY_HIGH),
++  ]
++  return () => {
++    disposed = true
++    cancel()
++    off.forEach(dispose => dispose())
++    bind(null, root)
++  }
++}
+diff --git a/packages/client/ui-conversation/src/client/input/editor/DraftCompletion.tsx b/packages/client/ui-conversation/src/client/input/editor/DraftCompletion.tsx
+new file mode 100644
+index 0000000..598c542
+--- /dev/null
++++ b/packages/client/ui-conversation/src/client/input/editor/DraftCompletion.tsx
+@@ -0,0 +1,34 @@
++/** Mount the public provider slot while retaining private editor ownership. */
++import { useCallback, useEffect, useRef, useState } from 'react'
++import type { ReactNode } from 'react'
++import type { LexicalEditor } from 'lexical'
++import type { DraftCompletionOwnerProps, DraftCompletionProvider } from '../../contract/completion.ts'
++import { installDraftCompletion } from './completion.ts'
++
++/**
++ * Bind the elected provider to the currently editable composer.
++ * @param props - private editor and public slot renderer.
++ * @returns the provider's presentation, without exposing editor internals.
++ */
++export function DraftCompletion({ editor, enabled, renderProvider }: {
++  editor: LexicalEditor | null
++  enabled: boolean
++  renderProvider: (owner: DraftCompletionOwnerProps) => ReactNode
++}): ReactNode {
++  const [provider, setProvider] = useState<DraftCompletionProvider | null>(null)
++  const held = useRef<DraftCompletionProvider | null>(null)
++  const register = useCallback((next: DraftCompletionProvider): (() => void) => {
++    if (held.current !== null) throw new Error('composer already has a completion provider')
++    held.current = next
++    setProvider(next)
++    return () => {
++      if (held.current !== next) return
++      held.current = null
++      setProvider(null)
++    }
++  }, [])
++  useEffect(() => {
++    if (editor !== null && enabled && provider !== null) return installDraftCompletion(editor, provider)
++  }, [editor, enabled, provider])
++  return renderProvider({ register })
++}
+diff --git a/packages/client/ui-conversation/tests/completion.client.spec.ts b/packages/client/ui-conversation/tests/completion.client.spec.ts
+new file mode 100644
+index 0000000..0812a63
+--- /dev/null
++++ b/packages/client/ui-conversation/tests/completion.client.spec.ts
+@@ -0,0 +1,82 @@
++// @vitest-environment jsdom
++/** Completion preserves editor nodes, history, composition, and submission ownership. */
++import { expect, it, onTestFinished, vi } from 'vitest'
++import { $getRoot, KEY_TAB_COMMAND, KEY_ESCAPE_COMMAND, UNDO_COMMAND, $createParagraphNode, $createTextNode, createEditor } from 'lexical'
++import { registerPlainText } from '@lexical/plain-text'
++import { registerHistory, createEmptyHistoryState } from '@lexical/history'
++import { installDraftCompletion } from '../src/client/input/editor/completion.ts'
++import { registerComposerKeymap } from '../src/client/input/editor/keymap.ts'
++
++function fixture(complete: (request: { prefix: string; signal: AbortSignal }) => AsyncIterable<string> = async function* () { yield '，并给出原因。' }) {
++  vi.useFakeTimers()
++  onTestFinished(() => vi.useRealTimers())
++  Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true, value: () => new DOMRect() })
++  Object.defineProperty(Range.prototype, 'getClientRects', { configurable: true, value: () => [] })
++  const root = document.createElement('div')
++  root.contentEditable = 'true'; root.tabIndex = 0; document.body.append(root)
++  const editor = createEditor({ namespace: 'completion-test', onError: error => { throw error } })
++  const plain = registerPlainText(editor)
++  const history = registerHistory(editor, createEmptyHistoryState(), 300)
++  editor.setRootElement(root)
++  root.focus()
++  editor.update(() => { const p = $createParagraphNode(); p.append($createTextNode('检查配置')); $getRoot().append(p); p.selectEnd() }, { discrete: true })
++  const spy = vi.fn(complete)
++  const error = vi.fn()
++  const dispose = installDraftCompletion(editor, { complete: spy, debounceMs: 100, timeoutMs: 500, maxCharacters: 200, onError: error })
++  onTestFinished(() => { dispose(); history(); plain(); editor.setRootElement(null); root.remove() })
++  const text = () => editor.getEditorState().read(() => $getRoot().getTextContent())
++  return { editor, root, dispose, spy, error, text }
++}
++it('shows streamed text outside the document, accepts with Tab, and undoes one insertion', async () => {
++  const f = fixture()
++  const before = f.editor.getEditorState().read(() => $getRoot().getFirstChild()!.getKey())
++  await vi.advanceTimersByTimeAsync(100)
++  expect(f.root.getAttribute('data-completion-text')).toBe('，并给出原因。')
++  expect(f.text()).toBe('检查配置')
++  f.editor.dispatchCommand(KEY_TAB_COMMAND, new KeyboardEvent('keydown', { key: 'Tab', cancelable: true }))
++  await vi.advanceTimersByTimeAsync(0)
++  expect(f.text()).toBe('检查配置，并给出原因。')
++  expect(f.editor.getEditorState().read(() => $getRoot().getFirstChild()!.getKey())).toBe(before)
++  f.editor.dispatchCommand(UNDO_COMMAND, undefined)
++  await vi.advanceTimersByTimeAsync(0)
++  expect(f.text()).toBe('检查配置')
++})
++it('Escape cancels a request and ignores a late provider result', async () => {
++  let resolve!: () => void
++  let signal!: AbortSignal
++  const f = fixture(async function* (request) { signal = request.signal; await new Promise<void>(r => { resolve = r }); yield 'late' })
++  await vi.advanceTimersByTimeAsync(100)
++  f.editor.dispatchCommand(KEY_ESCAPE_COMMAND, new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }))
++  expect(signal.aborted).toBe(true)
++  resolve(); await vi.advanceTimersByTimeAsync(0)
++  expect(f.root.hasAttribute('data-completion-text')).toBe(false)
++  expect(f.text()).toBe('检查配置')
++})
++it('composition and selection away from the end suppress completion', async () => {
++  const f = fixture()
++  f.root.dispatchEvent(new CompositionEvent('compositionstart'))
++  await vi.advanceTimersByTimeAsync(200)
++  expect(f.spy).not.toHaveBeenCalled()
++  f.root.dispatchEvent(new CompositionEvent('compositionend'))
++  f.editor.update(() => { $getRoot().getAllTextNodes()[0]!.select(1, 1) }, { discrete: true })
++  await vi.advanceTimersByTimeAsync(200)
++  expect(f.spy).not.toHaveBeenCalled()
++})
++it('the existing menu owns Tab before suggestions', async () => {
++  const f = fixture()
++  const menu = registerComposerKeymap(f.editor, { arbitrate: () => 'consumed', dismissPopup() {}, space: () => false, canSubmit: () => true, submit() {}, intakeFiles() {}, pasteText() {} })
++  onTestFinished(menu)
++  await vi.advanceTimersByTimeAsync(100)
++  f.editor.dispatchCommand(KEY_TAB_COMMAND, new KeyboardEvent('keydown', { key: 'Tab', cancelable: true }))
++  expect(f.text()).toBe('检查配置')
++})
++it('editing aborts the previous request and disposal removes presentation', async () => {
++  const f = fixture()
++  await vi.advanceTimersByTimeAsync(100)
++  f.editor.update(() => { $getRoot().getAllTextNodes()[0]!.selectEnd().insertText('新') }, { discrete: true })
++  expect(f.root.hasAttribute('data-completion-text')).toBe(false)
++  await vi.advanceTimersByTimeAsync(100)
++  f.dispose()
++  expect(f.root.hasAttribute('data-completion-text')).toBe(false)
++  expect(f.text()).toBe('检查配置新')
++})
+diff --git a/packages/core/session/src/index.ts b/packages/core/session/src/index.ts
+index c3b783b..ff7e3ee 100644
+--- a/packages/core/session/src/index.ts
++++ b/packages/core/session/src/index.ts
+@@ -713,14 +713,15 @@ export class Session {
+    *   of truth, so a bad event fails at the append site rather than later during
+    *   a backend flush. A synchronous internal dispatch validation failure or an
+    *   append reentered while this acceptance/publication boundary is open also
+-   *   rejects before the log changes.
++   *   rejects before the log changes. Log-only producers may explicitly mark
++   *   their event ignorable so readers without that plugin may retain and skip it.
+    */
+   append<T extends SessionEventType>(
+     type: T,
+     data: SessionEventMap[T],
+-    ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T>] : []
++    ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T>] : [opts?: { readonly ignorable?: true }]
+   ): SessionEvent<T> {
+-    const surfaceOpts: SurfaceIntent | undefined = opts[0]
++    const surfaceOpts = opts[0] as (SurfaceIntent & { readonly ignorable?: true }) | undefined
+     const surfaceMetadata = {
+       ...surfaceOpts?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
+       ...surfaceOpts?.surfaceOp === undefined ? {} : { surfaceOp: surfaceOpts.surfaceOp },
+@@ -742,6 +743,7 @@ export class Session {
+       seq: SessionSeq(this.log.length),
+       time: Date.now(),
+       data: dataSnapshot,
++      ...(surfaceOpts?.ignorable === true ? { ignorable: true as const } : {}),
+       ...(surfaceMetadataSnapshot as { surfaceOp?: unknown; sourceEventSeqs?: unknown }),
+     } as unknown as SessionEvent<T>)
+     validateSessionEventData(event, `session event "${type}" at seq ${event.seq}`)
+diff --git a/packages/core/session/tests/ignorable-append.spec.ts b/packages/core/session/tests/ignorable-append.spec.ts
+new file mode 100644
+index 0000000..35a77e7
+--- /dev/null
++++ b/packages/core/session/tests/ignorable-append.spec.ts
+@@ -0,0 +1,17 @@
++/** Auxiliary plugin provenance remains optional on readers that do not know its type. */
++import { expect, it } from 'vitest'
++import { Session, SessionId, snapshotSessionEvent } from '@deepseek-ai/dsh-session'
++declare module '@deepseek-ai/dsh-session/types' {
++  interface SessionEventMap { 'test/completion-request': { readonly prefix: string } }
++}
++it('persists the explicit ignorable envelope without altering the user message history', () => {
++  const session = Session.create(SessionId('completion-provenance'))
++  const event = session.append('test/completion-request', { prefix: '草稿' }, { ignorable: true })
++  expect(event.ignorable).toBe(true)
++  expect(snapshotSessionEvent(JSON.parse(JSON.stringify(event)))).toEqual(event)
++  expect(session.surface.nodes).toEqual([])
++})
++it('keeps ordinary event envelopes unchanged', () => {
++  const session = Session.create(SessionId('ordinary-provenance'))
++  expect(session.append('session/end-seed', {})).not.toHaveProperty('ignorable')
++})
+diff --git a/packages/client/ui-conversation/README.md b/packages/client/ui-conversation/README.md
+index b557262..3eb8a86 100644
+--- a/packages/client/ui-conversation/README.md
++++ b/packages/client/ui-conversation/README.md
+@@ -5,6 +5,8 @@ kind: "package-reference"
+ 
+ # @deepseek-ai/dsh-client-ui-conversation
+ 
++The single Session slot `conversation.input.completion` accepts an asynchronous text provider through `register`. The editor owns end-of-draft eligibility, composition, cancellation, ghost presentation, and Tab insertion. Providers supply debounce, timeout, and character limits. Ghost text stays outside the draft; Enter sends only accepted content. Insertion preserves reference nodes and adds one undo step; command and reference menus keep keyboard priority.
++
+ English | [中文](README.zh.md)
+ 
+ Desktop product events use the optional [product analytics service](../product-analytics/README.md); ordinary Web interactions are excluded.
+diff --git a/packages/client/ui-conversation/README.zh.md b/packages/client/ui-conversation/README.zh.md
+index a441b15..be9f24f 100644
+--- a/packages/client/ui-conversation/README.zh.md
++++ b/packages/client/ui-conversation/README.zh.md
+@@ -5,6 +5,8 @@ kind: "package-reference"
+ 
+ # @deepseek-ai/dsh-client-ui-conversation
+ 
++`conversation.input.completion` 单占会话插槽允许注册异步文本补齐供应器。供应器通过 `register` 返回卸载函数，并提供停顿、超时和字符上限；编辑器负责输入法、末尾光标资格、取消、灰字以及 Tab 插入。灰字不进入草稿；Enter 只发送已接受文字，接受建议保持引用节点和独立撤销步骤。命令和引用菜单优先处理按键。
++
+ [English](README.md) | 中文
+ 
+ 桌面端产品事件使用可选的[产品埋点服务](../product-analytics/README.zh.md)，不包含普通 Web 交互。
+diff --git a/packages/core/session/README.md b/packages/core/session/README.md
+index 330ec5b..741de3b 100644
+--- a/packages/core/session/README.md
++++ b/packages/core/session/README.md
+@@ -5,6 +5,8 @@ kind: "package-reference"
+ 
+ # @deepseek-ai/dsh-session
+ 
++Non-surface events may explicitly use `append(type, data, { ignorable: true })` to retain auxiliary model-request provenance without entering agent history. Unknown events follow the existing ignorable-event decoding behavior; the session format version is unchanged.
++
+ English | [中文](README.zh.md)
+ 
+ ## Summary
+diff --git a/packages/core/session/README.zh.md b/packages/core/session/README.zh.md
+index bf98911..04f8f7c 100644
+--- a/packages/core/session/README.zh.md
++++ b/packages/core/session/README.zh.md
+@@ -5,6 +5,8 @@ kind: "package-reference"
+ 
+ # @deepseek-ai/dsh-session
+ 
++非 surface 事件可通过 `append(type, data, { ignorable: true })` 明确写入可忽略辅助记录，供补齐等独立模型请求保留来源。该记录不进入主模型历史；未识别事件沿用已有可忽略事件读取机制，不改变会话格式版本。
++
+ [English](README.md) | 中文
+ 
+ ## 概述
+diff --git a/.agents/notes/implemented/architecture/2026-10-08-draft-completion.md b/.agents/notes/implemented/architecture/2026-10-08-draft-completion.md
+new file mode 100644
+index 0000000..a55fe97
+--- /dev/null
++++ b/.agents/notes/implemented/architecture/2026-10-08-draft-completion.md
+@@ -0,0 +1,9 @@
++# 输入补齐接口
++
++conversation.input.completion 是单占会话插槽。注册项通过 register 提供异步文本生成器，编辑器负责停顿、超时、输入法、光标末尾判断、取消以及 Tab 插入。注册项不接收编辑器对象；灰字不写入草稿，不进入发送内容。
++
++命令和引用菜单保留最高按键优先级。建议通过现有 RangeSelection 插入并使用独立撤销步骤，保留原有引用节点。失焦、编辑或卸载会取消生成请求。
++
++非 surface 事件可明确传入 ignorable: true，写入辅助模型请求来源。未知可忽略事件遵循已有日志读取策略，保持会话格式版本和已提交的数据代际。辅助事件不进入主模型的 surface。
++
++第三方插件拥有供应商、模型和续写提示词；宿主只拥有编辑器操作。部署参数由供应器传入，不由宿主固定。配套测试覆盖灰字、接受、撤销、菜单优先级、输入法和迟到结果。

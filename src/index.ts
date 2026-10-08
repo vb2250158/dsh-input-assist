@@ -522,7 +522,7 @@ function apply(ctx: Context): void {
 	let scope: SettingsScope | undefined = undefined
 	ctx.inject(['settings'], (settingsCtx) => {
 		// 0.1.5：register 直接收命名空间字符串，旧 settingsNamespace 帮助函数已移除
-		scope = settingsCtx.settings.register(NS, ConfigSchema) as unknown as SettingsScope
+    scope = (settingsCtx.settings as unknown as { register(ns: string, schema: unknown): SettingsScope }).register(NS, ConfigSchema)
 	})
 
 	// 0.1.5：service 用属性访问（ctx.connection）获取——cordis traceable

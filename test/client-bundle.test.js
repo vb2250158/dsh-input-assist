@@ -19,7 +19,7 @@ const clientSource = readFileSync(join(here, '../lib/client.js'), 'utf8')
 // —— 壳完整性 ——
 test('bundle 被 ModuleLoader 壳包裹且不再有 DICT-SHARED 标记', () => {
 	assert.ok(clientSource.startsWith('window.__ModuleLoader__.load('), 'missing ModuleLoader banner')
-	assert.ok(clientSource.includes('return module.exports;}});'), 'missing ModuleLoader footer')
+	assert.match(clientSource, /return module\.exports;\s*}\s*}\);/, 'missing ModuleLoader footer')
 	assert.ok(!clientSource.includes('DICT-SHARED'), 'stale DICT-SHARED marker from the pre-TS era')
 })
 
