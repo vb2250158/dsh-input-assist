@@ -21,7 +21,6 @@ interface Props {
 }
 interface Context {
   effect(callback: () => void | (() => void)): void
-  connection: { fetch(path: string, init: RequestInit): Promise<Response> }
   locale: { register(ns: string, dictionaries: Record<string, Record<string, string>>): void }
   slots: {
     inject(name: string, callback: () => unknown): void
@@ -33,6 +32,20 @@ const dictionaries = {
   en: { button: 'Complete', title: 'Input completion', close: 'Close', save: 'Save', cancel: 'Cancel', enabled: 'Enable completion', provider: 'Provider', model: 'Completion model', choose: 'Choose', delay: 'Pause (ms)', timeout: 'Timeout (ms)', length: 'Output limit (tokens)', hint: 'Continues the current draft. Tab accepts; Esc dismisses. Model calls incur costs and are recorded in the local session log.', unsupported: 'Apply the companion composer patch and rebuild the Host.', error: 'Completion failed', custom: 'Or enter a model ID supported by this provider', loading: 'Loading models…' },
 }
 type Catalog = { provider: string; name: string; models: { id: string; name: string }[] }[]
+/** Post a settings request through the served page's authenticated same-origin transport. */
+export async function nativeRpc<T>(endpoint: string, payload?: unknown): Promise<T> {
+  const response = await fetch(RPC, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint, payload }) })
+  const result = await response.json() as { ok: boolean; value: T; error?: string }
+  if (!result.ok) throw new Error(result.error ?? String(response.status))
+  return result.value
+}
+
+/** Stream one draft request; browser cookies stay owned by the existing login session. */
+export async function* requestCompletion(prefix: string, sessionId: string, signal: AbortSignal): AsyncIterable<string> {
+  const response = await fetch(STREAM, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prefix, sessionId }), signal })
+  yield* readCompletionStream(response, signal)
+}
+
 export async function* readCompletionStream(response: Response, signal: AbortSignal): AsyncIterable<string> {
   if (!response.ok || !response.headers.get('content-type')?.includes('text/event-stream')) {
     const data = await response.json() as { error?: string; done?: string }
@@ -71,12 +84,7 @@ export async function* readCompletionStream(response: Response, signal: AbortSig
 /** Register the native provider only while the plugin and settings are active. */
 export function apply(ctx: Context): void {
   const config = createSnapshotStore({ ...NATIVE_DEFAULTS, enabled: false })
-  const rpc = async <T,>(endpoint: string, payload?: unknown): Promise<T> => {
-    const response = await ctx.connection.fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint, payload }) })
-    const result = await response.json() as { ok: boolean; value: T; error?: string }
-    if (!result.ok) throw new Error(result.error ?? String(response.status))
-    return result.value
-  }
+  const rpc = nativeRpc
   ctx.locale.register(NATIVE_NS, dictionaries)
   ctx.effect(() => {
     const style = document.createElement('style')
@@ -100,8 +108,7 @@ export function apply(ctx: Context): void {
         debounceMs: value.debounceMs, timeoutMs: value.timeoutMs, maxCharacters: value.maxCharacters,
         async *complete(request) {
           setError('')
-          const response = await ctx.connection.fetch(STREAM, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prefix: request.prefix, sessionId }), signal: request.signal })
-          yield* readCompletionStream(response, request.signal)
+          yield* requestCompletion(request.prefix, sessionId, request.signal)
         },
         onError: setError,
       })

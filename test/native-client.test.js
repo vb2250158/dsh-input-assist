@@ -47,3 +47,29 @@ test('reads split SSE frames and reports upstream errors without accepting an un
     for await (const part of api.readCompletionStream(new Response('data: {"error":"model unavailable"}\n\n', { headers: { 'content-type': 'text/event-stream' } }), new AbortController().signal)) void part
   }, /model unavailable/u)
 })
+
+test('uses the browser fetch transport for settings and cancellable completion', async t => {
+  const api = client()
+  const original = globalThis.fetch
+  const signal = new AbortController().signal
+  const calls = []
+  t.after(() => { globalThis.fetch = original })
+  globalThis.fetch = async (path, init) => {
+    calls.push({ path, init })
+    assert.equal(init.method, 'POST')
+    assert.equal(init.credentials, 'same-origin')
+    if (path === '/api/input-completion/rpc') {
+      assert.deepEqual(JSON.parse(init.body), { endpoint: 'config.get' })
+      return Response.json({ ok: true, value: { provider: 'test', model: 'fast' } })
+    }
+    assert.equal(path, '/api/input-completion/stream')
+    assert.equal(init.signal, signal)
+    assert.deepEqual(JSON.parse(init.body), { prefix: '检查配置', sessionId: 'test-session' })
+    return new Response('data: {"delta":"并说明原因"}\n\ndata: {"done":true}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+  }
+  assert.deepEqual(await api.nativeRpc('config.get'), { provider: 'test', model: 'fast' })
+  const parts = []
+  for await (const part of api.requestCompletion('检查配置', 'test-session', signal)) parts.push(part)
+  assert.deepEqual(parts, ['并说明原因'])
+  assert.equal(calls.length, 2)
+})
