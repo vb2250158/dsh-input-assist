@@ -1,5 +1,11 @@
 # 版本记录
 
+## 0.10.3
+
+模型弹窗打开期间后台菜单透明并禁用指针，关闭后保留原生焦点恢复。
+
+Keep the background completion menu transparent and pointer-inactive while the model dialog is open, preserving native return focus when it closes.
+
 ## 0.10.2
 
 模型弹窗打开期间隐藏后台补齐浮层，避免父菜单盖住搜索结果；关闭弹窗后恢复配置草稿。
