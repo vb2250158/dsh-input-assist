@@ -2,4 +2,4 @@
 - insert:
     - id: input-assist
       name: dsh-input-assist
-      inject: [settings, llm, sessions, connection, sessionProjections]
+      inject: [settings, llm, sessions, connection, sessionProjections, storage, storage.backend.json]

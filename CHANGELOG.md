@@ -1,5 +1,11 @@
 # 版本记录
 
+## 0.11.0
+
+新增补齐记录入口，保存跨会话最近 100 条请求。查看实际提示词、上下文、结果、状态、模型、耗时、首字耗时和返回的 token 用量；缺失用量明确显示。使用官方 JSON KV 存储，并发写入按发起时间保留，重启可识别中断请求。需启用基础 bundle 的 storage 与 storage-json。
+
+Add persistent completion history for the latest 100 starts across conversations, showing exact prompts/context, results/status, provider/model, duration, first-token latency and returned usage. Missing usage stays explicit. Official JSON KV storage serializes concurrent writes and marks interrupted requests after restart; base-bundle storage and storage-json are required.
+
 ## 0.10.4
 
 补齐设置改为页面共享缓存，切换对话和重新打开菜单不再重复加载或锁住模型按钮。首次读取合并并发请求，设置变更后台更新，宿主重连时清除旧设置；保存结果不被迟到读取覆盖，读取错误可重试。

@@ -70,7 +70,9 @@ test('real HTTP streams through the registered route and aborts model work on di
   let aborted
   const startedPromise = new Promise(resolve => { started = resolve })
   const abortedPromise = new Promise(resolve => { aborted = resolve })
+  let history = null
   const ctx = {
+    storage: { backend: { get: () => ({ kv: { open: async () => ({ loadAll: async () => ({global:history}), setGlobal: async value => {history = value}, close: async () => {} }) } }) } },
     sessionProjections: { register: () => () => {}, stateOf: () => ({finalAssistantIds:{},filesByResultId:{}}) },
     settings: { describe: () => [{ ns: 'input-assist', revision: 0, value: settings }], update: async (_ns, patch) => { settings = { ...settings, ...patch } } },
     sessions: { get: id => id === 'synthetic-session' ? { append: (...event) => events.push(event) } : undefined },
@@ -89,7 +91,7 @@ test('real HTTP streams through the registered route and aborts model work on di
     connection: { fetch: { register: route => { routes.set(route.path, route.fetch); return () => routes.delete(route.path) } } },
     effect(callback) { const dispose = callback(); if (typeof dispose === 'function') disposers.push(dispose) },
   }
-  apply(ctx, Object.fromEntries(Object.keys(settings).map(key => [key, { get: () => settings[key] }])))
+  await apply(ctx, Object.fromEntries(Object.keys(settings).map(key => [key, { get: () => settings[key] }])))
   const server = createServer(async (req, res) => {
     const abort = new AbortController()
     res.on('close', () => { if (!res.writableEnded) abort.abort() })

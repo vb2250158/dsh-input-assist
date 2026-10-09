@@ -1,6 +1,6 @@
 /** Native composer provider and independent model settings; no DOM editor access. */
 import * as React from 'react'
-import { Button, Menu, Modal, Input, InlineEditor, Switch, Tooltip, StateDot, IconSparkleRegular, IconSettingsOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Menu, Modal, Input, InlineEditor, Switch, Tooltip, StateDot, IconSparkleRegular, IconSettingsOutlineRegular, IconClockOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore } from './snapshot-store.ts'
 import { createCompletionActivity } from './completion-activity.ts'
 export { createCompletionActivity } from './completion-activity.ts'
@@ -9,6 +9,7 @@ export { createCompletionSettingsCache } from './completion-settings-cache.ts'
 import type { CompletionSettingsState } from './completion-settings-cache.ts'
 import { NATIVE_DEFAULTS, NATIVE_NS } from './native-config.ts'
 import type { NativeConfig } from './native-config.ts'
+import { CompletionRecords, recordDictionaries } from './completion-record-ui.ts'
 import { NATIVE_UI_STYLE } from './native-ui-style.ts'
 export const inject = ['slots', 'locale', 'connection', 'modelPickers', 'remote']
 const h = React.createElement
@@ -41,8 +42,8 @@ interface Context {
   }
 }
 const dictionaries = {
-  zh: { completing: '正在补齐…', button: '补齐', title: '输入补齐', settings: '补齐设置', close: '关闭', back: '返回', save: '保存', cancel: '取消', enabled: '启用补齐', provider: '提供商', model: '补齐模型', choose: '请选择', search: '搜索模型', delay: '停顿时间（ms）', timeout: '请求超时（ms）', length: '输出上限（tokens）', characters: '建议长度上限（字符）', context: '当前草稿前文（最多字符）', history: '参考最近的会话消息', tools: '包含工具调用与返回', files: '包含变动文件信息', excludeUsers: '排除用户消息', finalOnly: '仅参考最终总结回复', fileHint: '文件信息取已完成工具记录中的路径、操作和变更片段行数，不读取工作区文件内容。', historyCount: '参考条目上限', historyLength: '会话参考上限（字符）', clipboard: '参考已读取的剪贴板', clipboardRead: '读取剪贴板', clipboardClear: '清除', clipboardEmpty: '尚未读取', clipboardReady: '已读取字符数', clipboardLength: '剪贴板参考上限（字符）', clipboardHint: '仅点击读取时获取，内容只在当前页面临时保留；刷新或清除后需重新读取。勾选后会随补齐请求发送给所选模型。', prompt: '补齐提示词', promptHint: '只让模型续写，不回答请求。Shift+Enter 换行。', hint: 'Tab 接受，Esc 忽略。模型调用会产生费用，选中的参考内容会记录到本机会话日志。', unsupported: '宿主缺少补齐接口，请应用仓库配套补丁并重建。', error: '补齐失败', custom: '自定义模型 ID', loading: '加载补齐设置…' },
-  en: { completing: 'Completing…', button: 'Complete', title: 'Input completion', settings: 'Completion settings', close: 'Close', back: 'Back', save: 'Save', cancel: 'Cancel', enabled: 'Enable completion', provider: 'Provider', model: 'Completion model', choose: 'Choose', search: 'Search models', delay: 'Pause (ms)', timeout: 'Timeout (ms)', length: 'Output limit (tokens)', characters: 'Suggestion limit (characters)', context: 'Draft context limit (characters)', history: 'Reference recent conversation messages', tools: 'Include tool calls and results', files: 'Include file changes', excludeUsers: 'Exclude user messages', finalOnly: 'Use final replies only', fileHint: 'File references use completed tool metadata: paths, operations and snippet line counts. No workspace files are read.', historyCount: 'Reference item limit', historyLength: 'History limit (characters)', clipboard: 'Reference captured clipboard', clipboardRead: 'Read clipboard', clipboardClear: 'Clear', clipboardEmpty: 'Not captured', clipboardReady: 'Captured characters', clipboardLength: 'Clipboard limit (characters)', clipboardHint: 'Read only on click, kept temporarily in this page. Refreshing or clearing requires another capture. When enabled, the captured text is sent to the selected model.', prompt: 'Completion prompt', promptHint: 'Ask for continuation, not an answer. Shift+Enter inserts a line break.', hint: 'Tab accepts; Esc dismisses. Model calls incur costs. Selected references are recorded in the local session log.', unsupported: 'Apply the companion composer patch and rebuild the Host.', error: 'Completion failed', custom: 'Custom model ID', loading: 'Loading completion settings…' },
+  zh: { ...recordDictionaries.zh, completing: '正在补齐…', button: '补齐', title: '输入补齐', settings: '补齐设置', close: '关闭', back: '返回', save: '保存', cancel: '取消', enabled: '启用补齐', provider: '提供商', model: '补齐模型', choose: '请选择', search: '搜索模型', delay: '停顿时间（ms）', timeout: '请求超时（ms）', length: '输出上限（tokens）', characters: '建议长度上限（字符）', context: '当前草稿前文（最多字符）', history: '参考最近的会话消息', tools: '包含工具调用与返回', files: '包含变动文件信息', excludeUsers: '排除用户消息', finalOnly: '仅参考最终总结回复', fileHint: '文件信息取已完成工具记录中的路径、操作和变更片段行数，不读取工作区文件内容。', historyCount: '参考条目上限', historyLength: '会话参考上限（字符）', clipboard: '参考已读取的剪贴板', clipboardRead: '读取剪贴板', clipboardClear: '清除', clipboardEmpty: '尚未读取', clipboardReady: '已读取字符数', clipboardLength: '剪贴板参考上限（字符）', clipboardHint: '仅点击读取时获取，内容只在当前页面临时保留；刷新或清除后需重新读取。勾选后会随补齐请求发送给所选模型。', prompt: '补齐提示词', promptHint: '只让模型续写，不回答请求。Shift+Enter 换行。', hint: 'Tab 接受，Esc 忽略。模型调用会产生费用，选中的参考内容会记录到本机会话日志。', unsupported: '宿主缺少补齐接口，请应用仓库配套补丁并重建。', error: '补齐失败', custom: '自定义模型 ID', loading: '加载补齐设置…' },
+  en: { ...recordDictionaries.en, completing: 'Completing…', button: 'Complete', title: 'Input completion', settings: 'Completion settings', close: 'Close', back: 'Back', save: 'Save', cancel: 'Cancel', enabled: 'Enable completion', provider: 'Provider', model: 'Completion model', choose: 'Choose', search: 'Search models', delay: 'Pause (ms)', timeout: 'Timeout (ms)', length: 'Output limit (tokens)', characters: 'Suggestion limit (characters)', context: 'Draft context limit (characters)', history: 'Reference recent conversation messages', tools: 'Include tool calls and results', files: 'Include file changes', excludeUsers: 'Exclude user messages', finalOnly: 'Use final replies only', fileHint: 'File references use completed tool metadata: paths, operations and snippet line counts. No workspace files are read.', historyCount: 'Reference item limit', historyLength: 'History limit (characters)', clipboard: 'Reference captured clipboard', clipboardRead: 'Read clipboard', clipboardClear: 'Clear', clipboardEmpty: 'Not captured', clipboardReady: 'Captured characters', clipboardLength: 'Clipboard limit (characters)', clipboardHint: 'Read only on click, kept temporarily in this page. Refreshing or clearing requires another capture. When enabled, the captured text is sent to the selected model.', prompt: 'Completion prompt', promptHint: 'Ask for continuation, not an answer. Shift+Enter inserts a line break.', hint: 'Tab accepts; Esc dismisses. Model calls incur costs. Selected references are recorded in the local session log.', unsupported: 'Apply the companion composer patch and rebuild the Host.', error: 'Completion failed', custom: 'Custom model ID', loading: 'Loading completion settings…' },
 }
 /** Post a settings request through the served page's authenticated same-origin transport. */
 export async function nativeRpc<T>(endpoint: string, payload?: unknown): Promise<T> {
@@ -138,6 +139,7 @@ export function apply(ctx: Context): void {
     const pending = useActivity(value => value.sessions[sessionId] ?? false)
     const captured = useClipboard(value => value.text)
     const [open, setOpen] = React.useState(false)
+    const [recordsOpen, setRecordsOpen] = React.useState(false)
     const [advanced, setAdvanced] = React.useState(false)
     const [pickerOpen, setPickerOpen] = React.useState(false)
     const [form, setForm] = React.useState(current)
@@ -171,7 +173,9 @@ export function apply(ctx: Context): void {
         anchor: h(Tooltip, { label: pending ? t('completing') : t('title'), side: 'top', portal: true, disabled: open, children: h(Button, { size: 'sm', variant: 'ghost', className: 'dsh-completion-icon', 'aria-label': pending ? t('completing') : t('title'), 'aria-busy': pending, 'aria-expanded': open, onClick: load }, pending ? h(StateDot, { state: 'ongoing', size: 18 }) : h(IconSparkleRegular, { size: 18 })) as React.ComponentProps<typeof Tooltip>['children'] }),
       },
         h('div', { className: 'dsh-completion-heading' }, h('strong', null, t('title')),
-          h(Button, { size: 'sm', variant: 'ghost', className: 'dsh-completion-icon', 'aria-label': t('settings'), disabled: !settingsState.ready, onClick: () => { close(); setAdvanced(true) } }, h(IconSettingsOutlineRegular, { size: 16 }))),
+          h('div', { className: 'dsh-completion-actions' },
+          h(Button, { size: 'sm', variant: 'ghost', className: 'dsh-completion-icon', 'aria-label': t('records'), onClick: () => { close(); setRecordsOpen(true) } }, h(IconClockOutlineRegular, { size: 16 })),
+          h(Button, { size: 'sm', variant: 'ghost', className: 'dsh-completion-icon', 'aria-label': t('settings'), disabled: !settingsState.ready, onClick: () => { close(); setAdvanced(true) } }, h(IconSettingsOutlineRegular, { size: 16 })))),
         loading ? h('div', { className: 'dsh-completion-note', role: 'status' }, t('loading')) : null,
         h('div', { className: 'dsh-completion-enable' }, h('span', null, t('enabled')), h(Switch, { checked: form.enabled, label: t('enabled'), onChange: (enabled: boolean) => setForm({ ...form, enabled }) })),
         h('div', { className: 'dsh-completion-picker' }, h('div', { className: 'dsh-completion-note' }, t('model')),
@@ -179,6 +183,7 @@ export function apply(ctx: Context): void {
         h('div', { className: 'dsh-completion-footer' }, h(Button, { size: 'sm', variant: 'primary', disabled: !settingsState.ready || saving, onClick: () => { void save() } }, t('save'))),
         displayError ? h('div', { className: 'dsh-completion-note', role: 'alert' }, displayError) : null,
       )),
+      h(CompletionRecords, { open: recordsOpen, onClose: () => setRecordsOpen(false), rpc, t }),
       h(Modal, { open: advanced, onClose: () => setAdvanced(false), title: t('settings'), closeLabel: t('close'),
         className: 'dsh-completion-dialog', contentClassName: 'dsh-completion-content',
         footer: h('div', { className: 'dsh-completion-footer' }, h(Button, { onClick: () => setAdvanced(false) }, t('cancel')), h(Button, { variant: 'primary', disabled: saving, onClick: () => { void save() } }, t('save'))),

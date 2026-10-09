@@ -3,6 +3,10 @@ import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk, Message } from '@deepseek-ai/dsh-llm'
+import { randomUUID } from 'node:crypto'
+import { createCompletionRecordStore } from './completion-record-store.ts'
+import type { CompletionRecord } from './completion-record.ts'
+export { createCompletionRecordStore } from './completion-record-store.ts'
 import { historyReferences } from './history-reference.ts'
 import { contextFactsProjection, CONTEXT_FACTS_KEY } from './context-facts.ts'
 import type { ContextFacts } from './context-facts.ts'
@@ -12,7 +16,7 @@ import { NATIVE_NS, NATIVE_DEFAULTS, DEFAULT_COMPLETION_PROMPT } from './native-
 import type { NativeConfig } from './native-config.ts'
 
 export const name = 'input-assist'
-export const inject = ['settings', 'llm', 'sessions', 'connection', 'sessionProjections']
+export const inject = ['settings', 'llm', 'sessions', 'connection', 'sessionProjections', 'storage', 'storage.backend.json']
 export const NATIVE_RPC_PATH = '/api/input-completion/rpc'
 export const NATIVE_STREAM_PATH = '/api/input-completion/stream'
 export const COMPLETION_SYSTEM = DEFAULT_COMPLETION_PROMPT
@@ -41,6 +45,7 @@ export const Config = z.object({
 for (const field of Object.values(Config.dict ?? {})) field.meta.volatile = true
 export type Config = { [Key in keyof NativeConfig]: Volatile<NativeConfig[Key]> }
 interface NativeServices {
+  storage: { backend: { get(name: string): { kv?: { open(descriptor: { name: string; version: number; tables: string[]; hasGlobal: boolean }): Promise<{ loadAll(): Promise<{ global: unknown }>; setGlobal(value: unknown): Promise<void>; close(): Promise<void> }> } } } }
   sessionProjections: { register(definition: unknown): () => void; stateOf(session: unknown, key: string): ContextFacts }
   settings: {
     describe(): { ns: string; revision: number; value: unknown }[]
@@ -101,9 +106,12 @@ export function nativeRequest(config: NativeConfig, prefix: string, signal: Abor
 }
 
 /** Install routes; the framework supplies same-origin authentication and reversible registration. */
-export function apply(ctx: Context, config: Config): void {
+export async function apply(ctx: Context, config: Config): Promise<void> {
   // Structural service faces keep the out-of-tree plugin compatible with the running Host version.
   const services = ctx as unknown as NativeServices
+  const kv = services.storage.backend.get('json').kv
+  if (!kv) throw new Error('completion history requires JSON key-value storage')
+  const records = await createCompletionRecordStore(await kv.open({ name: 'input_completion_history', version: 1, tables: [], hasGlobal: true }))
   ctx.effect(() => services.sessionProjections.register(contextFactsProjection))
   const scope = {
     get: (): NativeConfig => Object.fromEntries(Object.entries(config).map(([key, value]) => [key, value.get()])) as unknown as NativeConfig,
@@ -114,7 +122,12 @@ export function apply(ctx: Context, config: Config): void {
     },
   }
   const inflight = new Set<AbortController>()
-  ctx.effect(() => () => { for (const request of inflight) request.abort(); inflight.clear() })
+  const pending = new Set<Promise<void>>()
+  ctx.effect(() => async () => {
+    for (const request of inflight) request.abort()
+    await Promise.allSettled([...pending])
+    await records.close()
+  })
   ctx.effect(() => services.connection.fetch.register({
     path: NATIVE_RPC_PATH, methods: ['POST'], requestBody: 'buffered',
     fetch: async request => {
@@ -122,6 +135,14 @@ export function apply(ctx: Context, config: Config): void {
         const body = object(await request.json())
         switch (body.endpoint) {
           case 'config.get': return json({ ok: true, value: scope.get() })
+          case 'history.list': return json({ ok: true, value: await records.list() })
+          case 'history.get': {
+            const payload = object(body.payload)
+            if (typeof payload.id !== 'string') throw new Error('invalid history id')
+            const record = await records.get(payload.id)
+            if (!record) throw new Error('completion record no longer exists')
+            return json({ ok: true, value: record })
+          }
           case 'config.set': {
             const patch = validateNativePatch(body.payload)
             const next = { ...scope.get(), ...patch }
@@ -148,6 +169,12 @@ export function apply(ctx: Context, config: Config): void {
         if (!config.enabled || prefix.trim().length < 2) return json({ done: '' })
         if (config.provider === '' || config.model === '') throw new Error('请选择补齐供应商和模型')
         const abort = new AbortController()
+        let settled!: () => void
+        const done = new Promise<void>(resolve => { settled = resolve })
+        pending.add(done)
+        const settle = (): void => { settled(); pending.delete(done); inflight.delete(abort) }
+        const startedAt = Date.now()
+        const recordId = randomUUID()
         inflight.add(abort)
         const linked = linkedTimeoutSignal(config.timeoutMs, AbortSignal.any([request.signal, abort.signal]))
         let options: GenerateOptions
@@ -162,8 +189,15 @@ export function apply(ctx: Context, config: Config): void {
           provider: options.provider, model: options.model, system: options.system,
           messages: options.messages, maxTokens: options.maxTokens,
           }, { ignorable: true })
+          await records.begin({
+            id: recordId, sessionId: body.sessionId, provider: options.provider!, model: options.model,
+            startedAt, status: 'pending', elapsedMs: null, firstTokenMs: null, usage: null,
+            system: config.systemPrompt, messages: options.messages.map(message => ({
+              role: message.role, text: message.content.map(block => block.type === 'text' ? block.text : '').join(''),
+            })), maxTokens: config.maxTokens, result: '', error: '', truncated: false,
+          })
         } catch (error) {
-          linked.dispose(); inflight.delete(abort)
+          linked.dispose(); settle()
           throw error
         }
         const encoder = new TextEncoder()
@@ -171,29 +205,49 @@ export function apply(ctx: Context, config: Config): void {
           async start(controller) {
             const send = (payload: object): void => { if (!abort.signal.aborted) controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`)) }
             let text = ''
+            let status: CompletionRecord['status'] = 'empty'
+            let usage: CompletionRecord['usage'] = null
+            let firstTokenMs: number | null = null
+            let failure = ''
+            let truncated = false
             try {
               for await (const chunk of services.llm.stream(options)) {
                 linked.signal.throwIfAborted()
                 if (chunk.type === 'text-delta') {
+                  if (firstTokenMs === null && chunk.text.length > 0) firstTokenMs = Date.now() - startedAt
                   const before = normalizeSuggestion(text, config.maxCharacters, prefix)
                   text += chunk.text
                   const after = normalizeSuggestion(text.split('\n')[0] ?? '', config.maxCharacters, prefix)
                   send({ delta: after.slice(before.length) })
-                  if (text.includes('\n') || after.length >= config.maxCharacters) break
+                  if (text.includes('\n') || after.length >= config.maxCharacters) { truncated = true; break }
+                } else if (chunk.type === 'usage') {
+                  usage = chunk.usage
                 } else if (chunk.type === 'finish' && (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')) {
                   if (text === '' && chunk.reason.kind === 'error' && isEmptyCompletionFailure(chunk.reason.failure)) break
                   throw new Error(chunk.reason.failure.message)
                 }
               }
-              send({ done: true })
+              status = normalizeSuggestion(text.split('\n')[0] ?? '', config.maxCharacters, prefix) ? 'success' : 'empty'
             } catch (error) {
-              if (!request.signal.aborted && !abort.signal.aborted) send({ error: error instanceof Error ? error.message : String(error) })
+              status = request.signal.aborted || abort.signal.aborted ? 'cancelled' : linked.signal.aborted ? 'timeout' : 'error'
+              failure = error instanceof Error ? error.message : String(error)
             } finally {
-              linked.dispose(); inflight.delete(abort)
-              if (!abort.signal.aborted) controller.close()
+              if (request.signal.aborted || abort.signal.aborted) status = 'cancelled'
+              const elapsedMs = Date.now() - startedAt
+              linked.dispose()
+              try {
+                await records.finish(recordId, { status, elapsedMs, firstTokenMs, usage, error: failure, truncated,
+                  result: normalizeSuggestion(text.split('\n')[0] ?? '', config.maxCharacters, prefix) })
+                if (!request.signal.aborted && !abort.signal.aborted) send(failure ? { error: failure } : { done: true })
+              } catch (error) {
+                if (!request.signal.aborted && !abort.signal.aborted) send({ error: `completion history: ${error instanceof Error ? error.message : String(error)}` })
+              } finally {
+                settle()
+                if (!abort.signal.aborted) controller.close()
+              }
             }
           },
-          cancel() { abort.abort(); linked.dispose(); inflight.delete(abort) },
+          cancel() { abort.abort(); linked.dispose() },
         })
         return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' } })
       } catch (error) { return json({ error: error instanceof Error ? error.message : String(error) }, 400) }
