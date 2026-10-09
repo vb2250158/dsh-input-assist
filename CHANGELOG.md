@@ -1,5 +1,11 @@
 # 版本记录
 
+## 0.10.1
+
+补齐请求期间图标显示主题加载动效，取消立即复位；模型按钮直接打开可搜索弹窗，沿用提供商、可见目录、常用排序和当前标记。
+
+Completion requests show the native animated loader until completion, failure or cancellation. Model selection opens a searchable dialog using the existing catalog, provider groups and frequent models.
+
 ## 0.10.0
 
 完整复用原模型选择器，沿用提供商、模型可见性、常用排序及当前选择。设置开关改为主题滑轨，数值输入去掉系统箭头。空补齐响应正常忽略，真正的接口错误继续显示。

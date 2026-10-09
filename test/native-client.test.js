@@ -87,3 +87,27 @@ test('only transmits explicitly supplied clipboard text and retains cancellation
   }
   for await (const part of api.requestCompletion('当前草稿', 'test-session', signal, '合成剪贴板内容')) void part
 })
+
+test('completion activity follows stream completion, cancellation and failures', async () => {
+  const activity = client().createCompletionActivity()
+  const abort = new AbortController()
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const stream = activity.track('synthetic', abort.signal, async function* () { await gate; yield '建议' })
+  const next = stream.next()
+  assert.equal(activity.store.getSnapshot().sessions.synthetic, true)
+  abort.abort()
+  assert.deepEqual(activity.store.getSnapshot().sessions, {})
+  const replacement = activity.track('synthetic', new AbortController().signal, async function* () { yield '新建议' })
+  await replacement.next()
+  release()
+  await next
+  await stream.return()
+  assert.equal(activity.store.getSnapshot().sessions.synthetic, true)
+  await replacement.next()
+  assert.deepEqual(activity.store.getSnapshot().sessions, {})
+  await assert.rejects(async () => {
+    for await (const _ of activity.track('failure', new AbortController().signal, async function* () { throw new Error('synthetic failure') })) void _
+  }, /synthetic failure/)
+  assert.deepEqual(activity.store.getSnapshot().sessions, {})
+})
