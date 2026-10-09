@@ -111,3 +111,107 @@ test('completion activity follows stream completion, cancellation and failures',
   }, /synthetic failure/)
   assert.deepEqual(activity.store.getSnapshot().sessions, {})
 })
+
+test('composer mounts share one initial settings read and reuse it on subsequent openings', async () => {
+  let reads = 0, resolve
+  const cache = client().createCompletionSettingsCache(() => {
+    ++reads
+    return new Promise(done => { resolve = done })
+  }, { enabled: false })
+  const first = cache.ensureLoaded()
+  const second = cache.ensureLoaded()
+  assert.equal(first, second)
+  await Promise.resolve()
+  assert.equal(reads, 1)
+  resolve({ enabled: true, provider: 'synthetic', model: 'fast' })
+  await first
+  for (let session = 0; session < 3; session++) await cache.ensureLoaded()
+  assert.equal(reads, 1)
+  assert.equal(cache.state.getSnapshot().ready, true)
+  assert.equal(cache.config.getSnapshot().model, 'fast')
+})
+
+test('settings errors are visible and the next opening can retry', async () => {
+  let reads = 0
+  const cache = client().createCompletionSettingsCache(async () => {
+    if (++reads === 1) throw new Error('synthetic settings unavailable')
+    return { model: 'recovered' }
+  }, { enabled: false })
+  await cache.ensureLoaded()
+  assert.equal(cache.state.getSnapshot().ready, false)
+  assert.match(cache.state.getSnapshot().error, /synthetic settings unavailable/)
+  await cache.ensureLoaded()
+  assert.equal(cache.state.getSnapshot().error, '')
+  assert.equal(cache.config.getSnapshot().model, 'recovered')
+})
+
+test('settings invalidation keeps the cached picker usable and coalesces pending refreshes', async () => {
+  const replies = []
+  const cache = client().createCompletionSettingsCache(() => new Promise(resolve => replies.push(resolve)), { enabled: false })
+  const initial = cache.ensureLoaded()
+  await Promise.resolve()
+  replies[0]({ model: 'cached' })
+  await initial
+  const refresh = cache.refresh()
+  await Promise.resolve()
+  assert.equal(cache.state.getSnapshot().ready, true)
+  assert.equal(cache.config.getSnapshot().model, 'cached')
+  cache.refresh()
+  cache.refresh()
+  replies[1]({ model: 'stale' })
+  await Promise.resolve()
+  assert.equal(replies.length, 3)
+  assert.equal(cache.config.getSnapshot().model, 'cached')
+  replies[2]({ model: 'latest' })
+  await refresh
+  assert.equal(cache.config.getSnapshot().model, 'latest')
+})
+
+test('a saved settings readback supersedes an older pending read', async () => {
+  let resolve
+  const cache = client().createCompletionSettingsCache(() => new Promise(done => { resolve = done }), { enabled: false })
+  const initial = cache.ensureLoaded()
+  await Promise.resolve()
+  cache.commit({ enabled: true, model: 'saved' })
+  resolve({ enabled: false, model: 'stale' })
+  await initial
+  assert.equal(cache.config.getSnapshot().model, 'saved')
+  assert.equal(cache.state.getSnapshot().ready, true)
+})
+
+test('a failed background refresh keeps existing settings and retries on opening', async () => {
+  let reads = 0
+  const cache = client().createCompletionSettingsCache(async () => {
+    if (++reads === 2) throw new Error('synthetic refresh failure')
+    return { model: reads === 1 ? 'cached' : 'fresh' }
+  }, { enabled: false })
+  await cache.ensureLoaded()
+  await cache.refresh()
+  assert.equal(cache.state.getSnapshot().ready, true)
+  assert.equal(cache.config.getSnapshot().model, 'cached')
+  await cache.ensureLoaded()
+  assert.equal(reads, 3)
+  assert.equal(cache.config.getSnapshot().model, 'fresh')
+})
+
+test('Host reset discards the previous generation and unloading ignores pending reads', async () => {
+  const replies = []
+  const cache = client().createCompletionSettingsCache(() => new Promise(resolve => replies.push(resolve)), { enabled: false })
+  const initial = cache.ensureLoaded()
+  await Promise.resolve()
+  cache.reset()
+  assert.equal(cache.config.getSnapshot().enabled, false)
+  replies[0]({ model: 'old-host' })
+  await Promise.resolve()
+  assert.equal(cache.state.getSnapshot().ready, false)
+  replies[1]({ model: 'new-host' })
+  await initial
+  assert.equal(cache.config.getSnapshot().model, 'new-host')
+  const refresh = cache.refresh()
+  await Promise.resolve()
+  cache.dispose()
+  replies[2]({ model: 'unloaded' })
+  await refresh
+  cache.commit({ model: 'late-save' })
+  assert.equal(cache.config.getSnapshot().model, 'new-host')
+})

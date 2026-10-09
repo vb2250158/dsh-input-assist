@@ -1,5 +1,11 @@
 # 版本记录
 
+## 0.10.4
+
+补齐设置改为页面共享缓存，切换对话和重新打开菜单不再重复加载或锁住模型按钮。首次读取合并并发请求，设置变更后台更新，宿主重连时清除旧设置；保存结果不被迟到读取覆盖，读取错误可重试。
+
+Completion settings share a page-scoped cache. Switching conversations and reopening the menu no longer reload settings or lock the model picker. Initial reads are deduplicated, settings changes refresh in the background, and Host resets discard old values. Late reads cannot overwrite saved settings; failed reads remain retryable.
+
 ## 0.10.3
 
 模型弹窗打开期间后台菜单透明并禁用指针，关闭后保留原生焦点恢复。
