@@ -127,6 +127,7 @@ export function apply(ctx: Context): void {
   const settings = createCompletionSettingsCache(() => nativeRpc<NativeConfig>('config.get'), { ...NATIVE_DEFAULTS, enabled: false })
   const config = settings.config
   const clipboard = createSnapshotStore({ text: '' })
+  ctx.effect(() => () => { clipboard.set({ text: '' }) })
   const activity = createCompletionActivity()
   const rpc = nativeRpc
   ctx.locale.register(NATIVE_NS, dictionaries)
@@ -175,7 +176,11 @@ export function apply(ctx: Context): void {
     const [error, setError] = React.useState('')
     const [saving, setSaving] = React.useState(false)
     const [numericDrafts, setNumericDrafts] = React.useState<Record<string, string>>({})
-    const invalidNumber = Object.values(numericDrafts).some(value => !/^\d+$/u.test(value) || !Number.isSafeInteger(Number(value)))
+    const invalidNumber = Object.entries(numericDrafts).some(([key, value]) => {
+      if (key === 'maxClipboardCharacters' && !form.includeClipboard) return false
+      if ((key === 'historyMessageLimit' || key === 'maxHistoryCharacters') && !form.includeHistory) return false
+      return !/^\d+$/u.test(value) || !Number.isSafeInteger(Number(value))
+    })
     const displayError = error || settingsState.error
     const close = (): void => { setOpen(false) }
     const load = (): void => {
@@ -184,7 +189,6 @@ export function apply(ctx: Context): void {
       void settings.ensureLoaded()
     }
     React.useEffect(() => { if (settingsState.ready) setForm(config.getSnapshot()) }, [settingsState.ready])
-    React.useEffect(() => () => { clipboard.set({ text: '' }) }, [])
     const toggle = (key: 'includeHistory' | 'includeClipboard' | 'includeToolCalls' | 'includeFileChanges' | 'excludeUserMessages' | 'excludeIntermediateAssistant', label: string): React.ReactNode => h('div', { className: 'dsh-completion-enable' }, h('span', null, t(label)), h(Switch, { checked: form[key], label: t(label), onChange: (checked: boolean) => setForm({ ...form, [key]: checked }) }))
     const field = (key: 'debounceMs' | 'timeoutMs' | 'maxTokens' | 'maxCharacters' | 'maxInputCharacters' | 'historyMessageLimit' | 'maxHistoryCharacters' | 'maxClipboardCharacters', label: string): React.ReactNode => h('label', { className: 'dsh-completion-row' }, t(label), h(Input, { type: 'text', inputMode: 'numeric', value: numericDrafts[key] ?? String(form[key]), 'aria-invalid': numericDrafts[key] !== undefined && !/^\d+$/u.test(numericDrafts[key]!), onChange: (event: React.ChangeEvent<HTMLInputElement>) => { const text = event.target.value; setNumericDrafts({ ...numericDrafts, [key]: text }); if (/^\d+$/u.test(text) && Number.isSafeInteger(Number(text))) setForm({ ...form, [key]: Number(text) }) } }))
     const section = (title: string, ...children: React.ReactNode[]): React.ReactNode => h('section', { className: 'dsh-completion-settings-section' }, h('h3', null, t(title)), ...children)

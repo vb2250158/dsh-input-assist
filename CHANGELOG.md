@@ -1,5 +1,12 @@
 # 版本记录
 
+## 0.12.1
+
+关闭会话或剪贴板参考后，已隐藏的未填完整参数不再阻止保存。已读取剪贴板在当前页面切换会话时保留，卸载、刷新或手动清除时释放；仍仅在点击读取后获取。
+
+Hidden incomplete numeric edits no longer block saving after a reference is disabled. Explicitly captured clipboard text survives conversation navigation within the page and is cleared on unload, refresh or manual clear.
+
+
 ## 0.12.0
 
 补齐设置按参考内容、续写方式、速度与长度分组，数字未填完整时禁止保存。记录增加搜索、状态筛选与耗时概览；来源显示当前会话名称并走官方导航跳转，子会话保留父地址。来源读取失败可重试，标识符收在请求详情。
