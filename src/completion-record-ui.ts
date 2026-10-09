@@ -1,13 +1,13 @@
 /** Native themed history dialog with summary rows and on-demand request details. */
 import * as React from 'react'
-import { Button, Modal, Input, SegmentedControl, Tag, DisclosureRow, IconInfoOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, Input, SegmentedControl, Tag, DisclosureRow, StateDot, IconInfoOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CompletionRecord, CompletionRecordSummary } from './completion-record.ts'
 import { completionSource } from './completion-source.ts'
 import type { CompletionSessionSources } from './completion-source.ts'
 const h = React.createElement
 const historyUx = {
-  zh: { searchRecords: '搜索会话、模型或补齐内容', recordFilter: '筛选补齐记录', allRecords: '全部', completedRecords: '完成', failedRecords: '异常', cancelledRecords: '取消', noMatches: '没有匹配的记录', unnamedSession: '未命名会话', missingSession: '来源会话已不存在', sourceLoading: '读取来源会话…', sourceError: '会话信息读取失败', openSource: '打开来源会话', diagnostics: '请求详情', visibleRecords: '条记录', retry: '重试' },
-  en: { searchRecords: 'Search conversations, models or suggestions', recordFilter: 'Filter completion history', allRecords: 'All', completedRecords: 'Complete', failedRecords: 'Errors', cancelledRecords: 'Cancelled', noMatches: 'No matching records', unnamedSession: 'Untitled conversation', missingSession: 'Source conversation no longer exists', sourceLoading: 'Reading source conversation…', sourceError: 'Could not read conversation information', openSource: 'Open source conversation', diagnostics: 'Request details', visibleRecords: 'records', retry: 'Retry' },
+  zh: { searchRecords: '搜索会话、模型或补齐内容', recordFilter: '筛选补齐记录', allRecords: '全部', completedRecords: '完成', failedRecords: '异常', cancelledRecords: '已取消', emptyRecords: '无建议', cancelledHint: '本次补齐已取消', noMatches: '没有匹配的记录', unnamedSession: '未命名会话', missingSession: '来源会话已不存在', sourceLoading: '读取来源会话…', sourceError: '会话信息读取失败', openSource: '打开来源会话', diagnostics: '请求详情', visibleRecords: '条记录', retry: '重试' },
+  en: { searchRecords: 'Search conversations, models or suggestions', recordFilter: 'Filter completion history', allRecords: 'All', completedRecords: 'Complete', failedRecords: 'Errors', cancelledRecords: 'Cancelled', emptyRecords: 'No suggestion', cancelledHint: 'This suggestion was cancelled', noMatches: 'No matching records', unnamedSession: 'Untitled conversation', missingSession: 'Source conversation no longer exists', sourceLoading: 'Reading source conversation…', sourceError: 'Could not read conversation information', openSource: 'Open source conversation', diagnostics: 'Request details', visibleRecords: 'records', retry: 'Retry' },
 }
 export const recordDictionaries = {
   zh: { ...historyUx.zh, records: '补齐记录', recordsHint: '所有会话的最近 100 条请求，按发起时间排序。', recordsEmpty: '暂无补齐记录', recordsLoading: '加载补齐记录…', refresh: '刷新', result: '补齐结果', actualContext: '实际发送的上下文', elapsed: '耗时', firstToken: '首字耗时', tokens: 'Token 用量', notReturned: '未返回', inputTokens: '未缓存输入', outputTokens: '输出', cacheReadTokens: '缓存读取', cacheWriteTokens: '缓存写入', reasoningTokens: '推理', totalTokens: '总计', session: '来源会话', requestLimit: '请求输出上限', truncated: '达到建议长度或换行后提前结束，用量可能未返回。', recordPending: '请求中', recordSuccess: '完成', recordEmpty: '无建议', recordCancelled: '已取消', recordTimeout: '超时', recordError: '失败', recordInterrupted: '宿主中断' },
@@ -69,13 +69,12 @@ export function CompletionRecords({ open, onClose, rpc, t: translate, sources, o
   const visible = rows.filter(row => completionRecordMatches(row, query, filter, completionSource(catalog, row.sessionId).title ?? ''))
   const status = (row: CompletionRecordSummary): React.ReactNode => h(Tag, { tone: row.status === 'success' ? 'success' : row.status === 'error' || row.status === 'timeout' ? 'danger' : row.status === 'pending' ? 'info' : 'quiet' }, t(statusKeys[row.status]))
   return h(Modal, { open, onClose, title: t('records'), closeLabel: t('close'), className: 'dsh-completion-record-dialog', contentClassName: 'dsh-completion-content',
-    footer: h('div', { className: 'dsh-completion-footer' }, detail ? h(Button, { onClick: () => { detailSeq.current++; setDetail(null); setLoading(false) } }, t('back')) : h(Button, { disabled: loading, onClick: () => setRevision(value => value + 1) }, t('refresh')), h(Button, { onClick: onClose }, t('close'))),
+    footer: h('div', { className: 'dsh-completion-footer' }, detail ? h(Button, { size: 'sm', variant: 'ghost', onClick: () => { detailSeq.current++; setDetail(null); setLoading(false) } }, t('back')) : h(Button, { size: 'sm', variant: 'ghost', disabled: loading, onClick: () => setRevision(value => value + 1) }, t('refresh')), h(Button, { size: 'sm', variant: 'ghost', onClick: onClose }, t('close'))),
   },
-    h('div', { className: 'dsh-completion-note' }, t('recordsHint')),
     !detail ? h('div', { className: 'dsh-completion-record-toolbar' },
       h(Input, { value: query, placeholder: t('searchRecords'), 'aria-label': t('searchRecords'), onChange: (event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value) }),
-      h(SegmentedControl, { id: 'completion-history-filter', label: t('recordFilter'), value: filter, onChange: setFilter, options: [{ value: 'all', label: t('allRecords') }, { value: 'success', label: t('completedRecords') }, { value: 'error', label: t('failedRecords') }, { value: 'cancelled', label: t('cancelledRecords') }] }),
-      h('span', { role: 'status', className: 'dsh-completion-note' }, `${visible.length} / ${rows.length} ${t('visibleRecords')}`)) : null,
+      h(SegmentedControl, { id: 'completion-history-filter', className: 'dsh-completion-filters', label: t('recordFilter'), value: filter, onChange: setFilter, options: [{ value: 'all', label: t('allRecords') }, { value: 'success', label: t('completedRecords') }, { value: 'cancelled', label: t('cancelledRecords') }, { value: 'error', label: t('failedRecords') }, { value: 'empty', label: t('emptyRecords') }] }),
+      h('div', { className: 'dsh-completion-record-count' }, h('span', null, t('recordsHint')), h('span', { role: 'status' }, `${visible.length} / ${rows.length} ${t('visibleRecords')}`))) : null,
     loading ? h('div', { role: 'status', className: 'dsh-completion-note' }, t('recordsLoading')) : null,
     error ? h('div', { role: 'alert', className: 'dsh-completion-note' }, error) : null,
     detail ? h('div', { className: 'dsh-completion-record-detail' },
@@ -96,10 +95,11 @@ export function CompletionRecords({ open, onClose, rpc, t: translate, sources, o
       !loading && rows.length === 0 ? h('div', { className: 'dsh-completion-note' }, t('recordsEmpty')) : null,
       !loading && rows.length > 0 && visible.length === 0 ? h('div', { className: 'dsh-completion-note' }, t('noMatches')) : null,
       ...visible.map(row => h(Button, { key: row.id, variant: 'ghost', className: 'dsh-completion-record-row', onClick: () => { void select(row.id) } },
-        h('span', { className: 'dsh-completion-record-line' }, h('strong', null, `${row.provider} · ${row.model}`), status(row)),
-        h('span', { className: 'dsh-completion-record-preview' }, completionSource(catalog, row.sessionId).title ?? t('unnamedSession')),
-        h('span', { className: 'dsh-completion-record-line dsh-completion-note' }, h('span', null, new Date(row.startedAt).toLocaleString()), h('span', null, `${time(row.elapsedMs)} · ${t('tokens')}: ${total(row)}`)),
-        h('span', { className: 'dsh-completion-record-preview' }, row.result || row.error || t(statusKeys[row.status])))),
+        h('span', { className: 'dsh-completion-record-dot' }, h(StateDot, { size: 14, state: row.status === 'success' ? 'done' : row.status === 'pending' ? 'ongoing' : row.status === 'error' || row.status === 'timeout' || row.status === 'interrupted' ? 'error' : 'idle' })),
+        h('span', { className: 'dsh-completion-record-main' },
+          h('span', { className: 'dsh-completion-record-line' }, h('strong', { className: 'dsh-completion-record-title' }, completionSource(catalog, row.sessionId).title ?? t('unnamedSession')), status(row)),
+          h('span', { className: 'dsh-completion-record-preview' }, row.result || (row.status === 'cancelled' ? t('cancelledHint') : row.error || t(statusKeys[row.status]))),
+          h('span', { className: 'dsh-completion-record-meta' }, h('span', null, `${row.provider} · ${row.model}`), h('span', null, new Date(row.startedAt).toLocaleString()), h('span', null, `${time(row.elapsedMs)} · ${t('tokens')}: ${total(row)}`))))),
     ),
   )
 }

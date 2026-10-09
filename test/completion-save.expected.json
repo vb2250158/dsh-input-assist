@@ -1,0 +1,6 @@
+[
+  {"enabled":true,"provider":"synthetic","model":"old","status":"saving"},
+  {"enabled":true,"provider":"other","model":"latest","status":"saving"},
+  {"enabled":true,"provider":"other","model":"latest","status":"saving"},
+  {"enabled":true,"provider":"other","model":"latest","status":"saved"}
+]

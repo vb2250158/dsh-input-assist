@@ -1,5 +1,11 @@
 # 版本记录
 
+## 0.13.0
+
+移除手动保存。补齐开关和模型选择立即生效，数值与提示词结束编辑后自动保存；快速编辑按序合并，失败恢复已确认设置并可重试。浮框收为紧凑布局，记录顶部固定搜索和全部/完成/已取消/异常/无建议筛选，列表以会话与建议为主，取消原因使用简短提示。
+
+Remove manual saving. Switches and model choices apply immediately; completed text and numeric edits save automatically. Serialize and coalesce rapid edits, restoring confirmed settings with retry on failure. Compact the popover and history rows; pin search/status filters and shorten cancellation previews.
+
 ## 0.12.2
 
 浏览器登录失效、请求被拒绝和非 JSON 服务错误显示可操作提示，保留模型原始错误与正常空建议，不再显示 JSON 解析异常。

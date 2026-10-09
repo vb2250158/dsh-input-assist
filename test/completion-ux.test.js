@@ -50,4 +50,6 @@ test('bounded history search includes current names, models and results while st
   assert.equal(completionRecordMatches(row, '', 'cancelled', ''), false)
   for (const status of ['error', 'timeout', 'interrupted']) assert.equal(completionRecordMatches({ ...row, status }, '', 'error', ''), true)
   assert.equal(completionRecordMatches({ ...row, status: 'cancelled' }, '', 'cancelled', ''), true)
+  assert.equal(completionRecordMatches({ ...row, status: 'empty' }, '', 'empty', ''), true)
+  assert.equal(completionRecordMatches({ ...row, status: 'success' }, '', 'empty', ''), false)
 })
