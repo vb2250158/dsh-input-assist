@@ -1,5 +1,12 @@
 # 版本记录
 
+## 0.12.0
+
+补齐设置按参考内容、续写方式、速度与长度分组，数字未填完整时禁止保存。记录增加搜索、状态筛选与耗时概览；来源显示当前会话名称并走官方导航跳转，子会话保留父地址。来源读取失败可重试，标识符收在请求详情。
+
+Group settings and validate numeric drafts; search/filter history, display duration summaries and open current source conversation names through official navigation. Preserve child addresses and retry metadata failures; keep IDs under request details.
+
+
 ## 0.11.0
 
 新增补齐记录入口，保存跨会话最近 100 条请求。查看实际提示词、上下文、结果、状态、模型、耗时、首字耗时和返回的 token 用量；缺失用量明确显示。使用官方 JSON KV 存储，并发写入按发起时间保留，重启可识别中断请求。需启用基础 bundle 的 storage 与 storage-json。
