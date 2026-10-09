@@ -49,6 +49,36 @@ test('reads split SSE frames and reports upstream errors without accepting an un
   }, /model unavailable/u)
 })
 
+test('plain-text authentication and proxy failures produce localized recovery hints', async t => {
+  const api = client()
+  const original = globalThis.fetch
+  t.after(() => { globalThis.fetch = original })
+  const messages = { authRequired: '重新打开 DSH 页面', requestForbidden: '请检查页面入口', httpFailure: '请求失败 HTTP {status}', invalidResponse: '响应无法识别' }
+  for (const status of [401, 403, 502]) {
+    const raw = () => new Response('private proxy response', { status, headers: { 'content-type': 'text/plain' } })
+    globalThis.fetch = async () => raw()
+    await assert.rejects(api.nativeRpc('config.get'), error => {
+      assert.equal(error.message, `input-assist/http-${status}`)
+      assert.equal(api.formatCompletionError(String(error), key => messages[key]), status === 401 ? messages.authRequired : status === 403 ? messages.requestForbidden : '请求失败 HTTP 502')
+      return true
+    })
+    await assert.rejects(async () => {
+      for await (const _ of api.readCompletionStream(raw(), new AbortController().signal)) void _
+    }, new RegExp(`input-assist/http-${status}`, 'u'))
+  }
+  await assert.rejects(async () => {
+    for await (const _ of api.readCompletionStream(new Response('<html>proxy</html>'), new AbortController().signal)) void _
+  }, /input-assist\/invalid-response/u)
+  assert.equal(api.formatCompletionError('input-assist/invalid-response', key => messages[key]), messages.invalidResponse)
+  assert.equal(api.formatCompletionError('model unavailable', key => messages[key]), 'model unavailable')
+  const empty = []
+  for await (const value of api.readCompletionStream(Response.json({ done: 'empty' }), new AbortController().signal)) empty.push(value)
+  assert.deepEqual(empty, [])
+  await assert.rejects(async () => {
+    for await (const _ of api.readCompletionStream(Response.json({ error: 'model unavailable' }, { status: 503 }), new AbortController().signal)) void _
+  }, /model unavailable/u)
+})
+
 test('uses the browser fetch transport for settings and cancellable completion', async t => {
   const api = client()
   const original = globalThis.fetch

@@ -56,7 +56,11 @@ const uxDictionaries = {
     "disabledHint": "补齐已关闭。",
     "saving": "保存中…",
     "retry": "重试",
-    "invalidNumber": "数值需填写完整的非负整数。"
+    "invalidNumber": "数值需填写完整的非负整数。",
+    "authRequired": "页面登录已失效，请从 DSH 重新打开此页面后重试。",
+    "requestForbidden": "补齐请求被宿主拒绝，请检查当前页面是否来自 DSH 的正式入口。",
+    "httpFailure": "补齐服务请求失败（HTTP {status}），请稍后重试。",
+    "invalidResponse": "补齐服务返回了无法识别的响应，请重试。"
   },
   "en": {
     "contextSection": "Reference content",
@@ -66,7 +70,11 @@ const uxDictionaries = {
     "disabledHint": "Completion is disabled.",
     "saving": "Saving…",
     "retry": "Retry",
-    "invalidNumber": "Enter a complete non-negative integer."
+    "invalidNumber": "Enter a complete non-negative integer.",
+    "authRequired": "Your page login has expired. Reopen this page from DSH and retry.",
+    "requestForbidden": "The Host refused the completion request. Check that this page was opened from DSH.",
+    "httpFailure": "The completion service request failed (HTTP {status}). Try again later.",
+    "invalidResponse": "The completion service returned an unrecognized response. Retry the request."
   }
 }
 const dictionaries = {
@@ -76,6 +84,8 @@ const dictionaries = {
 /** Post a settings request through the served page's authenticated same-origin transport. */
 export async function nativeRpc<T>(endpoint: string, payload?: unknown): Promise<T> {
   const response = await fetch(RPC, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint, payload }) })
+  if (!response.ok) throw await responseError(response)
+  if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('input-assist/invalid-response')
   const result = await response.json() as { ok: boolean; value: T; error?: string }
   if (!result.ok) throw new Error(result.error ?? String(response.status))
   return result.value
@@ -89,6 +99,8 @@ export async function* requestCompletion(prefix: string, sessionId: string, sign
 
 export async function* readCompletionStream(response: Response, signal: AbortSignal): AsyncIterable<string> {
   if (!response.ok || !response.headers.get('content-type')?.includes('text/event-stream')) {
+    if (!response.ok) throw await responseError(response)
+    if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('input-assist/invalid-response')
     const data = await response.json() as { error?: string; done?: string }
     if (data.error) throw new Error(data.error)
     return
@@ -122,6 +134,30 @@ export async function* readCompletionStream(response: Response, signal: AbortSig
   }
 }
 
+async function responseError(response: Response): Promise<Error> {
+  if (response.status === 401 || response.status === 403) return new Error(`input-assist/http-${response.status}`)
+  if (response.headers.get('content-type')?.includes('application/json')) {
+    const data = await response.json() as { error?: string }
+    if (typeof data.error === 'string' && data.error) return new Error(data.error)
+  }
+  return new Error(`input-assist/http-${response.status}`)
+}
+
+/** Localize transport failures without exposing a proxy response body.
+ * @param message - transport or upstream error message.
+ * @param t - completion dictionary lookup.
+ * @returns actionable transport copy or the unchanged upstream error.
+ */
+export function formatCompletionError(message: string, t: (key: string) => string): string {
+  const token = message.replace(/^Error: /u, '')
+  if (token === 'input-assist/invalid-response') return t('invalidResponse')
+  const match = /^input-assist\/http-(\d+)$/u.exec(token)
+  if (!match) return message
+  if (match[1] === '401') return t('authRequired')
+  if (match[1] === '403') return t('requestForbidden')
+  return t('httpFailure').replace('{status}', match[1]!)
+}
+
 /** Register the native provider only while the plugin and settings are active. */
 export function apply(ctx: Context): void {
   const settings = createCompletionSettingsCache(() => nativeRpc<NativeConfig>('config.get'), { ...NATIVE_DEFAULTS, enabled: false })
@@ -129,7 +165,6 @@ export function apply(ctx: Context): void {
   const clipboard = createSnapshotStore({ text: '' })
   ctx.effect(() => () => { clipboard.set({ text: '' }) })
   const activity = createCompletionActivity()
-  const rpc = nativeRpc
   ctx.locale.register(NATIVE_NS, dictionaries)
   ctx.effect(() => {
     const style = document.createElement('style')
@@ -160,7 +195,7 @@ export function apply(ctx: Context): void {
         onError: setError,
       })
     }, [register, value, sessionId, captured])
-    return error ? h('div', { className: 'dsh-completion-error', role: 'status' }, `${t('error')}: ${error}`) : null
+    return error ? h('div', { className: 'dsh-completion-error', role: 'status' }, `${t('error')}: ${formatCompletionError(error, t)}`) : null
   }
   function Control({ useConfig, useSettingsState, useClipboard, useActivity, ModelPicker, sessionId, t }: Props): React.ReactNode {
     const current = useConfig(value => value)
@@ -181,7 +216,11 @@ export function apply(ctx: Context): void {
       if ((key === 'historyMessageLimit' || key === 'maxHistoryCharacters') && !form.includeHistory) return false
       return !/^\d+$/u.test(value) || !Number.isSafeInteger(Number(value))
     })
-    const displayError = error || settingsState.error
+    const displayError = formatCompletionError(error || settingsState.error, t)
+    const rpc = React.useCallback(async <T,>(endpoint: string, payload?: unknown): Promise<T> => {
+      try { return await nativeRpc<T>(endpoint, payload) }
+      catch (error) { throw new Error(formatCompletionError(String(error), t)) }
+    }, [t])
     const close = (): void => { setOpen(false) }
     const load = (): void => {
       if (open) { close(); return }

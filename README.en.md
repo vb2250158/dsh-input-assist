@@ -9,3 +9,5 @@ The clock icon next to completion settings opens the latest 100 completion reque
 Settings are grouped into reference content, continuation instructions, and speed/length. Incomplete numeric edits disable saving. History can be searched by conversation title, model or suggestion, and filtered by completion status. Source names come from the live Session Controller; clicking closes the dialog and uses official workspace navigation, preserving direct-parent addresses for child conversations. Missing sources cannot be opened; metadata failures can be retried. IDs and output limits are collapsed under Request details.
 
 Disabling a reference ignores hidden incomplete numeric edits. Explicitly captured clipboard text survives conversation navigation in the same page and is released on refresh, plugin unload or manual clear.
+
+Expired browser authentication asks users to reopen the page from DSH. Refused requests and invalid service responses display recovery hints instead of JSON parsing errors.

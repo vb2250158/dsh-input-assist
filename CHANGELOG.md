@@ -1,5 +1,12 @@
 # 版本记录
 
+## 0.12.2
+
+浏览器登录失效、请求被拒绝和非 JSON 服务错误显示可操作提示，保留模型原始错误与正常空建议，不再显示 JSON 解析异常。
+
+Expired page authentication, refused requests and non-JSON service failures show actionable hints. Preserve model errors and normal empty suggestions.
+
+
 ## 0.12.1
 
 关闭会话或剪贴板参考后，已隐藏的未填完整参数不再阻止保存。已读取剪贴板在当前页面切换会话时保留，卸载、刷新或手动清除时释放；仍仅在点击读取后获取。
