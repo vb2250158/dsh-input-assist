@@ -2,6 +2,7 @@
 export const NATIVE_UI_STYLE = `
 .dsh-completion-icon{width:28px;padding:0;flex:0 0 auto}
 .dsh-completion-popover{width:300px;max-width:calc(100vw - 24px)}
+.dsh-completion-behind-dialog{visibility:hidden;pointer-events:none}
 .dsh-completion-heading{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}
 .dsh-completion-enable{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
 .dsh-completion-dialog{width:min(600px,100%);max-height:100%}

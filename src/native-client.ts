@@ -161,7 +161,7 @@ export function apply(ctx: Context): void {
     }
     return h(React.Fragment, null,
       h('span', { 'data-input-completion-settings': true }, h(Menu, {
-        open, onClose: () => { if (!pickerOpen) close() }, side: 'top', align: 'end', portal: true, listClassName: 'dsh-completion-popover',
+        open, onClose: () => { if (!pickerOpen) close() }, side: 'top', align: 'end', portal: true, listClassName: `dsh-completion-popover${pickerOpen ? ' dsh-completion-behind-dialog' : ''}`,
         anchor: h(Tooltip, { label: pending ? t('completing') : t('title'), side: 'top', portal: true, disabled: open, children: h(Button, { size: 'sm', variant: 'ghost', className: 'dsh-completion-icon', 'aria-label': pending ? t('completing') : t('title'), 'aria-busy': pending, 'aria-expanded': open, onClick: load }, pending ? h(StateDot, { state: 'ongoing', size: 18 }) : h(IconSparkleRegular, { size: 18 })) as React.ComponentProps<typeof Tooltip>['children'] }),
       },
         h('div', { className: 'dsh-completion-heading' }, h('strong', null, t('title')),

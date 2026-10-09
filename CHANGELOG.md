@@ -1,5 +1,11 @@
 # 版本记录
 
+## 0.10.2
+
+模型弹窗打开期间隐藏后台补齐浮层，避免父菜单盖住搜索结果；关闭弹窗后恢复配置草稿。
+
+Hide the parent completion menu while the model dialog is open so it cannot cover search results; closing the dialog restores the settings draft.
+
 ## 0.10.1
 
 补齐请求期间图标显示主题加载动效，取消立即复位；模型按钮直接打开可搜索弹窗，沿用提供商、可见目录、常用排序和当前标记。
