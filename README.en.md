@@ -17,3 +17,7 @@ Expired browser authentication asks users to reopen the page from DSH. Refused r
 The popover has no Save button. Switches and model choices apply immediately and save automatically. Advanced numeric edits save on blur, Enter or dialog close; prompts save on blur or Enter. Shift+Enter inserts a line break. Incomplete or out-of-range edits remain unsent. Page-scoped writes continue across conversation navigation. Failed writes restore confirmed settings with a visible error and retry.
 
 Pinned history search and filters cover all, complete, cancelled, errors and no suggestion. Errors include failures, timeouts and interrupted requests. Cancelled rows use short previews while request details retain original records.
+
+## Display language
+
+Plugin list names and descriptions follow the DSH Chinese or English language setting.

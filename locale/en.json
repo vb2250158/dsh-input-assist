@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Input completion",
+    "description": "Complete input with an independently configured model, reference context, streaming suggestions and cancellation."
+  }
+}

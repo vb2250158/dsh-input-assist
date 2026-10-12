@@ -1,7 +1,7 @@
 {
   "name": "dsh-input-assist",
-  "version": "0.13.0",
-  "description": "DSH input completion with an independent configured model, native editor insertion and cancellable streaming",
+  "version": "0.13.1",
+  "description": "Complete input with an independently configured model, reference context, streaming suggestions and cancellation.",
   "type": "module",
   "main": "lib/native-host.js",
   "license": "MIT",
@@ -35,7 +35,8 @@
       "default": "./lib/native-client.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "dsh": {
     "bundle": {
@@ -69,7 +70,8 @@
     "patches/",
     "README.en.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "locale"
   ],
   "scripts": {
     "gendict": "node scripts/gen-dict.mjs",

@@ -55,10 +55,11 @@ test('empty suggestions settle quietly while authentication and partial-stream f
   for(const failure of [{code:'EMPTY_RESPONSE',message:'empty'},{code:'UNKNOWN',message:'model returned a completed response with no content'},
     {code:'UNAUTHORIZED',message:'authentication failed'}]) for(const partial of [false,true]) {
     const routes=new Map(), config={...NATIVE_DEFAULTS,provider:'synthetic',model:'small'}
-    const ctx={settings:{},sessionProjections:{register:()=>()=>{}},sessions:{get:()=>({append(){}})},
+    const ctx={settings:{},sessionProjections:{register:()=>()=>{},stateOf:()=>({finalAssistantIds:{},filesByResultId:{}})},sessions:{get:()=>({append(){},deriveMessages:()=>[]})},
+      storage:{backend:{get:()=>({kv:{open:async()=>({loadAll:async()=>({global:null}),setGlobal:async()=>{},close:async()=>{}})}})}},
       llm:{async *stream(){if(partial)yield {type:'text-delta',text:'部分建议'};yield {type:'finish',reason:{kind:'error',failure}}}},
       effect: fn=>fn(),connection:{fetch:{register:r=>{routes.set(r.path,r.fetch);return()=>{}}}}}
-    apply(ctx,Object.fromEntries(Object.entries(config).map(([k,v])=>[k,{get:()=>v}])))
+    await apply(ctx,Object.fromEntries(Object.entries(config).map(([k,v])=>[k,{get:()=>v}])))
     const response=await routes.get(NATIVE_STREAM_PATH)(new Request('http://synthetic'+NATIVE_STREAM_PATH,{method:'POST',body:JSON.stringify({prefix:'提交一',sessionId:'synthetic'})}))
     const wire=await response.text()
     assert.equal(wire.includes('"error"'),partial||failure.code==='UNAUTHORIZED')
