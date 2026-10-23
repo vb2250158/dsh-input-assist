@@ -1,6 +1,6 @@
 {
   "name": "dsh-input-assist",
-  "version": "0.13.1",
+  "version": "0.13.2",
   "description": "Complete input with an independently configured model, reference context, streaming suggestions and cancellation.",
   "type": "module",
   "main": "lib/native-host.js",
@@ -97,6 +97,7 @@
     "@types/node": "^26.2.0",
     "@types/react": "^18.3.31",
     "tsdown": "^0.22.14",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@deepseek-ai/cordis-plugin-loader": "~1.0.6"
   }
 }

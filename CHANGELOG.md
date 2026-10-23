@@ -1,3 +1,8 @@
+## 0.13.2 (2026-10-24)
+
+- Integrate the upstream legacy FIM Config and Plugins-page migration and caret-aware Tab insertion. Preserve the native completion entry, deployment SDK pins and existing context/history/preferences behavior.
+- 合入旧 FIM 设置迁移和句中 Tab 采纳修复；保留原生入口、SDK 固定依赖及上下文、历史、共享配置行为。
+
 # 版本记录
 
 ## 0.13.1 — 2026-10-12

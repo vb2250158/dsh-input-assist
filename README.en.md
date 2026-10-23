@@ -1,5 +1,7 @@
 # dsh-input-assist
 
+Maintenance version 0.13.2 integrates the upstream 0.8.0 legacy FIM settings and mid-sentence Tab acceptance fixes. The default entry remains native completion; reference context, shared preferences and request history remain unchanged.
+
 本分支的使用、安装与兼容说明统一维护在 [README.md](README.md)。
 
 Completion settings are shared across the page. After the first successful read, switching conversations or reopening the menu uses cached settings immediately. Settings changes refresh in the background without locking the model picker. Host resets discard old settings; failed reads show an error and retry on the next opening.
