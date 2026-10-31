@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Autocompletado de entrada",
+    "description": "Completa el texto con un modelo configurado por separado, contexto de referencia, sugerencias en streaming y cancelación."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Eingabevervollständigung",
+    "description": "Eingaben mit einem separat konfigurierten Modell ergänzen, mit Referenzkontext, laufenden Vorschlägen und Abbruchmöglichkeit."
+  }
+}
