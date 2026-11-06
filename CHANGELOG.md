@@ -1,3 +1,8 @@
+## 0.13.3 (2026-11-06)
+
+- Declare the current Cordis 4.1 Host and DSH 0.2.2-rc.1 development environment. Add a real Cordis mount/unload regression for completion routes and history ownership; completion behavior and user settings remain unchanged.
+- 声明当前 Cordis 4.1 宿主与 DSH 0.2.2-rc.1 开发环境，增加真实 Cordis 挂载/卸载回归，核对补齐路由与记录释放；补齐行为和用户设置保持不变。
+
 ## 0.13.2 (2026-10-24)
 
 - Integrate the upstream legacy FIM Config and Plugins-page migration and caret-aware Tab insertion. Preserve the native completion entry, deployment SDK pins and existing context/history/preferences behavior.

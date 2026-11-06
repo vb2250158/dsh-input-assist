@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "candidate": {
+    "pluginVersion": "0.13.3",
+    "coreVersion": "0.2.2-rc.1",
+    "coreUpstream": "fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159",
+    "cordis": "4.1.0",
+    "mode": "source-web",
+    "status": "Current-Core typechecks, focused behavior regressions and plugin bundles verified; full source-Web combination and formal installation belong to maintenance owner",
+    "testEvidence": {
+      "tests": 157,
+      "actualCordisMountUnload": true
+    }
+  },
+  "runtime": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "24.15.0",
+    "pnpm": "11.28.5"
+  },
+  "scope": {
+    "compatibilityMatrix": false,
+    "otherProducts": false
+  },
+  "formal": {
+    "pluginVersion": "0.13.2",
+    "status": "Previous installed baseline; this candidate has not been installed by its source owner"
+  }
+}

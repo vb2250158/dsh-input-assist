@@ -1,5 +1,7 @@
 # dsh-input-assist
 
+0.13.3 的当前受测候选为 Windows x64、Node 24.15.0、DSH 0.2.2-rc.1 源码 Web 与 Cordis 4.1.0；运行配置和补齐行为不变。候选验证与正式安装状态见 [tested-environment.json](tested-environment.json)，不维护旧宿主或跨平台测试矩阵。
+
 本维护版 0.13.2 合入上游 0.8.0 的旧 FIM 设置页与句中 Tab 采纳修复；默认入口仍为独立原生补全，已有上下文选择、共享配置与历史记录行为保持不变。
 
 DSH 输入框的灰字补齐插件。基于 [honlnk/dsh-input-assist](https://github.com/honlnk/dsh-input-assist) 的 MIT 项目开发，本分支使用原生编辑器接口和独立聊天模型。

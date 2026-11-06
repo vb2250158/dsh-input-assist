@@ -1,5 +1,7 @@
 # dsh-input-assist
 
+The 0.13.3 candidate targets Windows x64, Node 24.15.0, source-Web DSH 0.2.2-rc.1 and Cordis 4.1.0. Completion behavior and user configuration are unchanged. [tested-environment.json](tested-environment.json) separates candidate verification from formal installation; this fork does not maintain an older-Host or cross-platform test matrix.
+
 Maintenance version 0.13.2 integrates the upstream 0.8.0 legacy FIM settings and mid-sentence Tab acceptance fixes. The default entry remains native completion; reference context, shared preferences and request history remain unchanged.
 
 本分支的使用、安装与兼容说明统一维护在 [README.md](README.md)。

@@ -1,6 +1,6 @@
 {
   "name": "dsh-input-assist",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "description": "Complete input with an independently configured model, reference context, streaming suggestions and cancellation.",
   "type": "module",
   "main": "lib/native-host.js",
@@ -71,7 +71,8 @@
     "README.en.md",
     "CHANGELOG.md",
     "LICENSE",
-    "locale"
+    "locale",
+    "tested-environment.json"
   ],
   "scripts": {
     "gendict": "node scripts/gen-dict.mjs",
@@ -88,12 +89,12 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5-alpha.1",
+    "@deepseek-ai/cordis": "~4.1.0",
     "react": "^18.2.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5-alpha.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-alpha.1",
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
     "@types/node": "^26.2.0",
     "@types/react": "^18.3.31",
     "tsdown": "^0.22.14",
