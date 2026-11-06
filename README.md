@@ -1,6 +1,6 @@
 # dsh-input-assist
 
-0.13.3 的当前受测候选为 Windows x64、Node 24.15.0、DSH 0.2.2-rc.1 源码 Web 与 Cordis 4.1.0；运行配置和补齐行为不变。候选验证与正式安装状态见 [tested-environment.json](tested-environment.json)，不维护旧宿主或跨平台测试矩阵。
+0.13.4 的当前受测环境为 Windows x64、Node 24.15.0、DSH 0.2.2-alpha.3 源码 Web 与宿主的 Cordis 4.0.6-alpha.2。发行构建使用一组自洽的已发布 SDK；源码 Web 的官方运行依赖须对齐实际宿主，不能让插件内的第二份 SDK 遮蔽它。运行配置和补齐行为不变，验证范围见 [tested-environment.json](tested-environment.json)。不维护旧宿主或跨平台测试矩阵。
 
 本维护版 0.13.2 合入上游 0.8.0 的旧 FIM 设置页与句中 Tab 采纳修复；默认入口仍为独立原生补全，已有上下文选择、共享配置与历史记录行为保持不变。
 
@@ -26,18 +26,7 @@ DSH 输入框的灰字补齐插件。基于 [honlnk/dsh-input-assist](https://gi
 
 ## 安装
 
-适配 DSH 0.2.1-alpha.1，需启用官方 `storage` 与 `storage-json`（基础 bundle 默认提供），并启用 `dsh-codex-model-selector` 0.1.12 或更新版本。宿主需具有 `conversation.input.completion` 插槽和可忽略辅助事件写入接口；本仓库随版本提供补丁。
-
-先备份宿主改动，然后在宿主目录执行：
-
-```sh
-node /path/to/dsh-input-assist/scripts/apply-native-patch.mjs /path/to/deepseek-harness
-node node_modules/typescript/bin/tsc -b packages/core/session/tsconfig.json packages/client/ui-conversation/tsconfig.client.json
-pnpm --filter @deepseek-ai/dsh-session exec tsdown
-DSH_BUILD_FACE=client pnpm --filter @deepseek-ai/dsh-client-ui-conversation bundle
-```
-
-Windows PowerShell 先执行 `$env:DSH_BUILD_FACE='client'` 再执行最后的 pnpm 命令。
+当前源码 Web 需启用官方 `storage` 与 `storage-json`（基础 bundle 默认提供），并启用 `dsh-codex-model-selector` 0.1.12 或更新版本。已验证的宿主具有 `conversation.input.completion` 插槽和可忽略辅助事件接口，不再应用仓库中面向历史宿主的补丁。安装到缺少这些接口的其它宿主时先停止并核对兼容性，不能直接覆盖宿主源码。
 
 在 DSH 环境同步的第三方插件管理中添加 GitHub 仓库 `vb2250158/dsh-input-assist`，固定版本对应的完整提交 SHA 并 Import。Git 安装需要允许本插件运行构建脚本。Import 完成后，在插件管理中启用 `dsh-input-assist` bundle，再重启 DSH 并刷新页面，在输入框配置补齐模型。
 

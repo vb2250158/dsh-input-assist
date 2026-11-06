@@ -1,15 +1,17 @@
 {
   "schemaVersion": 1,
   "candidate": {
-    "pluginVersion": "0.13.3",
-    "coreVersion": "0.2.2-rc.1",
-    "coreUpstream": "fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159",
-    "cordis": "4.1.0",
+    "pluginVersion": "0.13.4",
+    "coreVersion": "0.2.2-alpha.3",
+    "coreSourceCommit": "3b0c646a175458e02743db1053f43fd34bad15b7",
+    "cordis": "4.0.6-alpha.2",
     "mode": "source-web",
-    "status": "Current-Core typechecks, focused behavior regressions and plugin bundles verified; full source-Web combination and formal installation belong to maintenance owner",
+    "status": "Source checks and Host-owned runtime SDK resolution verified; exact Git preparation, full source-Web combination and formal installation remain distinct acceptance steps",
     "testEvidence": {
       "tests": 157,
-      "actualCordisMountUnload": true
+      "actualCordisMountUnload": true,
+      "currentCoreArtifactTypes": true,
+      "cleanNpmDependencyResolution": true
     }
   },
   "runtime": {
@@ -20,10 +22,11 @@
   },
   "scope": {
     "compatibilityMatrix": false,
-    "otherProducts": false
+    "otherProducts": false,
+    "publishedBuildSdk": "0.2.2-rc.1",
+    "runtimeSdk": "Host-owned current source-Web installation"
   },
   "formal": {
-    "pluginVersion": "0.13.2",
-    "status": "Previous installed baseline; this candidate has not been installed by its source owner"
+    "status": "Formal installation and business QA belong to the maintenance coordinator; source checks do not assert formal delivery"
   }
 }

@@ -1,3 +1,8 @@
+## 0.13.4 (2026-11-07)
+
+- Align published development SDK and loader dependencies so a clean Git `prepare` can build the declared Host and Web client instead of failing npm peer resolution. Keep the existing completion behavior and settings; source-Web installations use the Host-owned SDK resolution.
+- 对齐发行包的开发 SDK 与 loader 依赖，修复干净 Git 安装在 `prepare` 构建前发生的 npm peer 冲突。补齐行为和设置不变；源码 Web 继续从宿主解析官方 SDK，并验证当前 0.2.2-alpha.3 的公开接口。
+
 ## 0.13.3 (2026-11-06)
 
 - Declare the current Cordis 4.1 Host and DSH 0.2.2-rc.1 development environment. Add a real Cordis mount/unload regression for completion routes and history ownership; completion behavior and user settings remain unchanged.
